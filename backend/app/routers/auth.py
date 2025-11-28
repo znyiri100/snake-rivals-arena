@@ -1,13 +1,16 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from ..models import User, LoginRequest, SignupRequest, ErrorResponse
-from ..db import db
+from ..sql_models import User as DBUser
+from ..db import get_db
 import uuid
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
     # In a real app, decode JWT here.
     # For mock, we'll assume the token is the user ID or email if it exists.
     # Let's just say token="mock-token-USERID"
@@ -19,8 +22,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         )
     
     user_id = token.replace("mock-token-", "")
-    # Find user by ID (inefficient but fine for mock)
-    user = next((u for u in db.users.values() if u.id == user_id), None)
+    result = await db.execute(select(DBUser).where(DBUser.id == user_id))
+    user = result.scalars().first()
+    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -30,29 +34,41 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 @router.post("/login", response_model=dict)
-async def login(request: LoginRequest):
-    if not db.verify_password(request.email, request.password):
+async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(DBUser).where(DBUser.email == request.email))
+    user = result.scalars().first()
+    
+    # In a real app, use hashing!
+    if not user or user.hashed_password != request.password:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    user = db.get_user_by_email(request.email)
     return {
         "success": True, 
-        "user": user,
+        "user": User.model_validate(user),
         "token": f"mock-token-{user.id}" # Return a mock token
     }
 
 @router.post("/signup", response_model=dict)
-async def signup(request: SignupRequest):
-    if db.get_user_by_email(request.email):
+async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(DBUser).where(DBUser.email == request.email))
+    existing_user = result.scalars().first()
+    
+    if existing_user:
         raise HTTPException(status_code=400, detail="Email already exists")
     
-    user_id = str(uuid.uuid4())
-    user = db.create_user(user_id, request.username, request.email, request.password)
+    new_user = DBUser(
+        username=request.username,
+        email=request.email,
+        hashed_password=request.password
+    )
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
     
     return {
         "success": True, 
-        "user": user,
-        "token": f"mock-token-{user.id}"
+        "user": User.model_validate(new_user),
+        "token": f"mock-token-{new_user.id}"
     }
 
 @router.post("/logout")
@@ -60,5 +76,5 @@ async def logout():
     return {"message": "Logout successful"}
 
 @router.get("/me", response_model=User)
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(current_user: DBUser = Depends(get_current_user)):
     return current_user

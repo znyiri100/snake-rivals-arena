@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -11,6 +11,8 @@ class User(BaseModel):
     id: str
     username: str
     email: str
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -25,8 +27,10 @@ class LeaderboardEntry(BaseModel):
     id: str
     username: str
     score: int
-    gameMode: GameMode
+    game_mode: GameMode = Field(alias="gameMode")
     timestamp: datetime
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class ScoreSubmission(BaseModel):
     score: int
@@ -37,8 +41,10 @@ class GameSession(BaseModel):
     userId: str
     username: str
     score: int
-    gameMode: GameMode
+    game_mode: GameMode = Field(alias="gameMode")
     isActive: bool
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class ErrorResponse(BaseModel):
     success: bool = False

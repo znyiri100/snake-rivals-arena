@@ -13,7 +13,7 @@ export const ActiveSessions = ({ onWatchSession }: ActiveSessionsProps) => {
 
   useEffect(() => {
     loadSessions();
-    const interval = setInterval(loadSessions, 2000);
+    const interval = setInterval(loadSessions, 10000);
     return () => clearInterval(interval);
   }, []);
 

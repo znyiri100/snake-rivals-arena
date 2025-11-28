@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,14 +14,19 @@ interface LoginModalProps {
 
 export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps) => {
   const [isSignup, setIsSignup] = useState(false);
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
+    const username = usernameRef.current?.value || '';
+    const email = emailRef.current?.value || '';
+    const password = passwordRef.current?.value || '';
 
     try {
       if (isSignup) {
@@ -30,7 +35,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
           toast.success(`Welcome, ${result.user?.username}!`);
           onLoginSuccess();
           onClose();
-          resetForm();
+          // Form reset happens automatically on next mount or we can manually clear
         } else {
           toast.error(result.error || 'Signup failed');
         }
@@ -40,7 +45,6 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
           toast.success(`Welcome back, ${result.user?.username}!`);
           onLoginSuccess();
           onClose();
-          resetForm();
         } else {
           toast.error(result.error || 'Login failed');
         }
@@ -50,15 +54,8 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
     }
   };
 
-  const resetForm = () => {
-    setUsername('');
-    setEmail('');
-    setPassword('');
-  };
-
   const toggleMode = () => {
     setIsSignup(!isSignup);
-    resetForm();
   };
 
   return (
@@ -77,8 +74,8 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
               </Label>
               <Input
                 id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                name="username"
+                ref={usernameRef}
                 required
                 className="bg-input border-border text-foreground"
                 placeholder="Enter your username"
@@ -91,9 +88,10 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
             </Label>
             <Input
               id="email"
+              name="email"
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              ref={emailRef}
               required
               className="bg-input border-border text-foreground"
               placeholder="Enter your email"
@@ -105,9 +103,10 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
             </Label>
             <Input
               id="password"
+              name="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              ref={passwordRef}
               required
               className="bg-input border-border text-foreground"
               placeholder="Enter your password"

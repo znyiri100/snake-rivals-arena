@@ -1,63 +1,35 @@
-from typing import Dict, List, Optional
-from .models import User, LeaderboardEntry, GameSession, GameMode
-from datetime import datetime
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker, declarative_base
+from typing import AsyncGenerator
 
-class MockDB:
-    def __init__(self):
-        self.users: Dict[str, User] = {}
-        self.user_passwords: Dict[str, str] = {}  # Store passwords separately
-        self.leaderboard: List[LeaderboardEntry] = []
-        self.sessions: List[GameSession] = []
-        
-        # Initialize with some mock data
-        self._seed_data()
+# Use SQLite for development, but easy to switch to Postgres
+# DATABASE_URL = "postgresql+asyncpg://user:password@localhost/dbname"
+DATABASE_URL = "sqlite+aiosqlite:///./test2.db"
 
-    def _seed_data(self):
-        # Mock users
-        self.create_user("1", "SnakeMaster", "master@example.com", "password123")
-        self.create_user("2", "NeonKing", "king@example.com", "password123")
-        
-        # Mock leaderboard
-        self.leaderboard.append(LeaderboardEntry(
-            id="1", username="SnakeMaster", score=2850, gameMode=GameMode.walls, timestamp=datetime.now()
-        ))
-        self.leaderboard.append(LeaderboardEntry(
-            id="2", username="NeonKing", score=2340, gameMode=GameMode.passthrough, timestamp=datetime.now()
-        ))
-        
-        # Mock sessions
-        self.sessions.append(GameSession(
-            id="1", userId="1", username="SnakeMaster", score=850, gameMode=GameMode.walls, isActive=True
-        ))
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=True, # Log SQL queries for debugging
+    future=True
+)
 
-    def create_user(self, id: str, username: str, email: str, password: str) -> User:
-        user = User(id=id, username=username, email=email)
-        self.users[email] = user
-        self.user_passwords[email] = password
-        return user
+SessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False
+)
 
-    def get_user_by_email(self, email: str) -> Optional[User]:
-        return self.users.get(email)
+Base = declarative_base()
 
-    def verify_password(self, email: str, password: str) -> bool:
-        return self.user_passwords.get(email) == password
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with SessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
-    def add_score(self, entry: LeaderboardEntry):
-        self.leaderboard.append(entry)
-        self.leaderboard.sort(key=lambda x: x.score, reverse=True)
-
-    def get_leaderboard(self, game_mode: Optional[GameMode] = None) -> List[LeaderboardEntry]:
-        if game_mode:
-            return [entry for entry in self.leaderboard if entry.gameMode == game_mode]
-        return self.leaderboard
-
-    def get_active_sessions(self) -> List[GameSession]:
-        return [s for s in self.sessions if s.isActive]
-
-    def get_session(self, id: str) -> Optional[GameSession]:
-        for session in self.sessions:
-            if session.id == id:
-                return session
-        return None
-
-db = MockDB()
+async def init_db():
+    async with engine.begin() as conn:
+        # In production, use Alembic for migrations.
+        # For dev/prototype, this creates tables if they don't exist.
+        await conn.run_sync(Base.metadata.create_all)
