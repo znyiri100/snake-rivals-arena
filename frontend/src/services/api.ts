@@ -23,7 +23,7 @@ export interface GameSession {
     isActive: boolean;
 }
 
-const API_URL = 'http://localhost:8000';
+const API_URL = '/api';
 
 class ApiService {
     private token: string | null = localStorage.getItem('token');
