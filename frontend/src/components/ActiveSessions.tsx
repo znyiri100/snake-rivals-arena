@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { mockBackend, type GameSession } from '@/services/mockBackend';
+import { api, type GameSession } from '@/services/api';
 import { Eye, TrendingUp } from 'lucide-react';
 
 interface ActiveSessionsProps {
@@ -18,7 +18,7 @@ export const ActiveSessions = ({ onWatchSession }: ActiveSessionsProps) => {
   }, []);
 
   const loadSessions = async () => {
-    const data = await mockBackend.getActiveSessions();
+    const data = await api.getActiveSessions();
     setSessions(data);
   };
 
@@ -28,7 +28,7 @@ export const ActiveSessions = ({ onWatchSession }: ActiveSessionsProps) => {
         <TrendingUp className="w-5 h-5" />
         ACTIVE GAMES
       </h2>
-      
+
       <div className="space-y-2">
         {sessions.length === 0 ? (
           <p className="text-muted-foreground text-center py-4">No active games</p>

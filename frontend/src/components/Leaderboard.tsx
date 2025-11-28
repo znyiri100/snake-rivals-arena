@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockBackend, type LeaderboardEntry } from '@/services/mockBackend';
+import { api, type LeaderboardEntry } from '@/services/api';
 import { Trophy, Medal } from 'lucide-react';
 
 interface LeaderboardProps {
@@ -18,7 +18,7 @@ export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
 
   const loadLeaderboard = async () => {
     setIsLoading(true);
-    const data = await mockBackend.getLeaderboard(gameMode);
+    const data = await api.getLeaderboard(gameMode);
     setEntries(data.slice(0, 10));
     setIsLoading(false);
   };
@@ -36,7 +36,7 @@ export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
         <Trophy className="w-5 h-5" />
         LEADERBOARD
       </h2>
-      
+
       {isLoading ? (
         <div className="space-y-2">
           {[...Array(5)].map((_, i) => (

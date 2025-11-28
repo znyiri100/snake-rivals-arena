@@ -6,21 +6,30 @@ import { LoginModal } from '@/components/LoginModal';
 import { Leaderboard } from '@/components/Leaderboard';
 import { ActiveSessions } from '@/components/ActiveSessions';
 import { WatchPlayer } from '@/components/WatchPlayer';
-import { mockBackend } from '@/services/mockBackend';
-import { 
-  getInitialGameState, 
-  moveSnake, 
+import { api } from '@/services/api';
+import {
+  getInitialGameState,
+  moveSnake,
   isOppositeDirection,
   calculateGameSpeed,
   type Direction,
   type GameMode,
-  type GameState 
+  type GameState
 } from '@/utils/gameLogic';
 import { Play, Pause, RotateCcw, LogOut, User, Trophy, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = () => {
-  const [user, setUser] = useState(mockBackend.getCurrentUser());
+  const [user, setUser] = useState(api.getCurrentUser());
+
+  useEffect(() => {
+    // Fetch user on mount to ensure we have the latest state (e.g. from token)
+    const initUser = async () => {
+      const u = await api.fetchCurrentUser();
+      setUser(u);
+    };
+    initUser();
+  }, []);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -46,13 +55,13 @@ const Index = () => {
   };
 
   const handleLogout = async () => {
-    await mockBackend.logout();
+    await api.logout();
     setUser(null);
     toast.success('Logged out successfully');
   };
 
   const handleLoginSuccess = () => {
-    setUser(mockBackend.getCurrentUser());
+    setUser(api.getCurrentUser());
   };
 
   const changeDirection = useCallback((newDirection: Direction) => {
@@ -114,7 +123,7 @@ const Index = () => {
   // Submit score on game over
   useEffect(() => {
     if (gameState?.isGameOver && user && selectedMode) {
-      mockBackend.submitScore(gameState.score, selectedMode);
+      api.submitScore(gameState.score, selectedMode);
     }
   }, [gameState?.isGameOver, user, selectedMode]);
 

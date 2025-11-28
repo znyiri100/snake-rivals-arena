@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { mockBackend } from '@/services/mockBackend';
+import { api } from '@/services/api';
 import { toast } from 'sonner';
 
 interface LoginModalProps {
@@ -25,7 +25,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
 
     try {
       if (isSignup) {
-        const result = await mockBackend.signup(username, email, password);
+        const result = await api.signup(username, email, password);
         if (result.success) {
           toast.success(`Welcome, ${result.user?.username}!`);
           onLoginSuccess();
@@ -35,7 +35,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
           toast.error(result.error || 'Signup failed');
         }
       } else {
-        const result = await mockBackend.login(email, password);
+        const result = await api.login(email, password);
         if (result.success) {
           toast.success(`Welcome back, ${result.user?.username}!`);
           onLoginSuccess();

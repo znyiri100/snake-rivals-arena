@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GameBoard } from './GameBoard';
-import { mockBackend, type GameSession } from '@/services/mockBackend';
+import { api, type GameSession } from '@/services/api';
 import { Eye, X } from 'lucide-react';
 
 interface WatchPlayerProps {
@@ -17,7 +17,7 @@ export const WatchPlayer = ({ sessionId, onClose }: WatchPlayerProps) => {
     if (!sessionId) return;
 
     const loadSession = async () => {
-      const data = await mockBackend.getSessionById(sessionId);
+      const data = await api.getSessionById(sessionId);
       setSession(data);
     };
 
