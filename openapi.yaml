@@ -1,0 +1,276 @@
+openapi: 3.0.0
+info:
+  title: Snake Rivals Arena API
+  description: API for Snake Rivals Arena game client.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+
+paths:
+  /auth/login:
+    post:
+      summary: User login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/signup:
+    post:
+      summary: User registration
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error or email exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: User logout
+      operationId: logout
+      responses:
+        '200':
+          description: Logout successful
+
+  /auth/me:
+    get:
+      summary: Get current user
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+
+  /leaderboard:
+    get:
+      summary: Get leaderboard entries
+      operationId: getLeaderboard
+      parameters:
+        - in: query
+          name: gameMode
+          schema:
+            type: string
+            enum: [passthrough, walls]
+          description: Filter by game mode
+      responses:
+        '200':
+          description: List of leaderboard entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaderboardEntry'
+    post:
+      summary: Submit a score
+      operationId: submitScore
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreSubmission'
+      responses:
+        '200':
+          description: Score submitted successfully
+        '401':
+          description: Not authenticated
+
+  /sessions:
+    get:
+      summary: Get active game sessions
+      operationId: getActiveSessions
+      responses:
+        '200':
+          description: List of active sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GameSession'
+
+  /sessions/{id}:
+    get:
+      summary: Get session details
+      operationId: getSessionById
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameSession'
+        '404':
+          description: Session not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+      required:
+        - id
+        - username
+        - email
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    SignupRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - username
+        - email
+        - password
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        score:
+          type: integer
+        gameMode:
+          type: string
+          enum: [passthrough, walls]
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+        - score
+        - gameMode
+        - timestamp
+
+    ScoreSubmission:
+      type: object
+      properties:
+        score:
+          type: integer
+        gameMode:
+          type: string
+          enum: [passthrough, walls]
+      required:
+        - score
+        - gameMode
+
+    GameSession:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        username:
+          type: string
+        score:
+          type: integer
+        gameMode:
+          type: string
+          enum: [passthrough, walls]
+        isActive:
+          type: boolean
+      required:
+        - id
+        - userId
+        - username
+        - score
+        - gameMode
+        - isActive
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string

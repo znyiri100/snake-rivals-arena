@@ -3,7 +3,7 @@ import { mockBackend } from '../mockBackend';
 
 describe('mockBackend', () => {
   beforeEach(async () => {
-    await mockBackend.logout();
+    mockBackend.reset();
   });
 
   describe('Authentication', () => {
@@ -25,7 +25,7 @@ describe('mockBackend', () => {
     it('should login with correct credentials', async () => {
       await mockBackend.signup('testuser', 'test@example.com', 'password123');
       await mockBackend.logout();
-      
+
       const result = await mockBackend.login('test@example.com', 'password123');
       expect(result.success).toBe(true);
       expect(result.user?.username).toBe('testuser');
@@ -34,7 +34,7 @@ describe('mockBackend', () => {
     it('should not login with incorrect password', async () => {
       await mockBackend.signup('testuser', 'test@example.com', 'password123');
       await mockBackend.logout();
-      
+
       const result = await mockBackend.login('test@example.com', 'wrongpassword');
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
@@ -49,7 +49,7 @@ describe('mockBackend', () => {
     it('should logout user', async () => {
       await mockBackend.signup('testuser', 'test@example.com', 'password123');
       expect(mockBackend.getCurrentUser()).not.toBeNull();
-      
+
       await mockBackend.logout();
       expect(mockBackend.getCurrentUser()).toBeNull();
     });
@@ -72,7 +72,7 @@ describe('mockBackend', () => {
     it('should filter leaderboard by game mode', async () => {
       const wallsEntries = await mockBackend.getLeaderboard('walls');
       expect(wallsEntries.every(e => e.gameMode === 'walls')).toBe(true);
-      
+
       const passthroughEntries = await mockBackend.getLeaderboard('passthrough');
       expect(passthroughEntries.every(e => e.gameMode === 'passthrough')).toBe(true);
     });
@@ -87,7 +87,7 @@ describe('mockBackend', () => {
     it('should submit score when logged in', async () => {
       await mockBackend.signup('testuser', 'test@example.com', 'password123');
       await mockBackend.submitScore(1000, 'walls');
-      
+
       const entries = await mockBackend.getLeaderboard();
       const userEntry = entries.find(e => e.username === 'testuser');
       expect(userEntry).toBeDefined();
@@ -109,7 +109,7 @@ describe('mockBackend', () => {
     it('should get session by id', async () => {
       const sessions = await mockBackend.getActiveSessions();
       const firstSession = sessions[0];
-      
+
       const session = await mockBackend.getSessionById(firstSession.id);
       expect(session).toBeDefined();
       expect(session?.id).toBe(firstSession.id);

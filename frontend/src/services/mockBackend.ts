@@ -50,30 +50,30 @@ export const mockBackend = {
   // Authentication
   async login(email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
     await delay(500);
-    
+
     const user = users.get(email);
     if (!user || user.password !== password) {
       return { success: false, error: 'Invalid email or password' };
     }
-    
+
     currentUser = { id: user.id, username: user.username, email: user.email };
     return { success: true, user: currentUser };
   },
 
   async signup(username: string, email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
     await delay(500);
-    
+
     if (users.has(email)) {
       return { success: false, error: 'Email already exists' };
     }
-    
+
     const newUser: User & { password: string } = {
       id: Math.random().toString(36).substr(2, 9),
       username,
       email,
       password,
     };
-    
+
     users.set(email, newUser);
     currentUser = { id: newUser.id, username: newUser.username, email: newUser.email };
     return { success: true, user: currentUser };
@@ -91,22 +91,22 @@ export const mockBackend = {
   // Leaderboard
   async getLeaderboard(gameMode?: 'passthrough' | 'walls'): Promise<LeaderboardEntry[]> {
     await delay(300);
-    
+
     let filtered = [...leaderboard];
     if (gameMode) {
       filtered = filtered.filter(entry => entry.gameMode === gameMode);
     }
-    
+
     return filtered.sort((a, b) => b.score - a.score);
   },
 
   async submitScore(score: number, gameMode: 'passthrough' | 'walls'): Promise<void> {
     await delay(400);
-    
+
     if (!currentUser) {
       throw new Error('Must be logged in to submit score');
     }
-    
+
     const entry: LeaderboardEntry = {
       id: Math.random().toString(36).substr(2, 9),
       username: currentUser.username,
@@ -114,7 +114,7 @@ export const mockBackend = {
       gameMode,
       timestamp: new Date(),
     };
-    
+
     leaderboard.push(entry);
     leaderboard.sort((a, b) => b.score - a.score);
   },
@@ -136,5 +136,13 @@ export const mockBackend = {
     if (session) {
       session.score = score;
     }
+  },
+
+  // For testing purposes
+  reset(): void {
+    currentUser = null;
+    users.clear();
+    // Reset leaderboard to initial state if needed, or just leave it
+    // For now, we just need to clear users to avoid signup conflicts
   },
 };
