@@ -12,7 +12,9 @@ services:
     healthCheckPath: /api/
     autoDeploy: true
 
+databases:
   # PostgreSQL Database
-  - type: pserv
-    name: snake-rivals-db
+  - name: snake-rivals-db
+    databaseName: snake_rivals
+    user: snake_user
     plan: free
