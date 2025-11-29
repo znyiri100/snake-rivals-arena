@@ -9,8 +9,6 @@ services:
         fromDatabase:
           name: snake-rivals-db
           property: connectionString
-      - key: PORT
-        value: 8000
     healthCheckPath: /api/
     autoDeploy: true
 
@@ -18,4 +16,3 @@ services:
   - type: pserv
     name: snake-rivals-db
     plan: free
-    ipAllowList: []
