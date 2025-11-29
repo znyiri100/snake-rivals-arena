@@ -17,8 +17,5 @@ services:
   # PostgreSQL Database
   - type: pserv
     name: snake-rivals-db
-    runtime: postgresql
     plan: free
-    databaseName: snake_rivals
-    databaseUser: snake_user
     ipAllowList: []
