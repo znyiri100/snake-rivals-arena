@@ -135,11 +135,11 @@ class ApiService {
 
     // Leaderboard
     async getLeaderboard(gameMode?: 'passthrough' | 'walls'): Promise<LeaderboardEntry[]> {
-        const url = new URL(`${API_URL}/leaderboard`);
+        let url = `${API_URL}/leaderboard`;
         if (gameMode) {
-            url.searchParams.append('gameMode', gameMode);
+            url += `?gameMode=${gameMode}`;
         }
-        const response = await fetch(url.toString());
+        const response = await fetch(url);
         if (!response.ok) return [];
         return await response.json();
     }

@@ -11,6 +11,7 @@ interface LeaderboardProps {
 export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadLeaderboard();
@@ -18,9 +19,15 @@ export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
 
   const loadLeaderboard = async () => {
     setIsLoading(true);
-    const data = await api.getLeaderboard(gameMode);
-    setEntries(data.slice(0, 10));
-    setIsLoading(false);
+    try {
+      const data = await api.getLeaderboard(gameMode);
+      setEntries(data.slice(0, 10));
+    } catch (error) {
+      console.error('Failed to load leaderboard:', error);
+      setError('Failed to load leaderboard data');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getRankIcon = (index: number) => {
@@ -42,6 +49,10 @@ export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
           {[...Array(5)].map((_, i) => (
             <div key={i} className="h-12 bg-muted animate-pulse rounded" />
           ))}
+        </div>
+      ) : error ? (
+        <div className="text-red-500 text-center p-4 bg-red-500/10 rounded border border-red-500/50">
+          {error}
         </div>
       ) : (
         <div className="space-y-2">

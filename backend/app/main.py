@@ -13,7 +13,8 @@ app = FastAPI(
     title="Snake Rivals Arena API",
     description="API for Snake Rivals Arena game client.",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    root_path="/api"
 )
 
 # Configure CORS
