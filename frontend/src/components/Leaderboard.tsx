@@ -72,8 +72,13 @@ export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
                   </Badge>
                 </div>
               </div>
-              <div className="text-xl font-bold text-primary neon-text">
-                {entry.score}
+              <div className="text-right">
+                <div className="text-xl font-bold text-primary neon-text">
+                  {entry.score}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {new Date(entry.timestamp).toLocaleDateString()}
+                </div>
               </div>
             </div>
           ))}

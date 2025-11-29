@@ -6,6 +6,7 @@ import { LoginModal } from '@/components/LoginModal';
 import { Leaderboard } from '@/components/Leaderboard';
 import { ActiveSessions } from '@/components/ActiveSessions';
 import { WatchPlayer } from '@/components/WatchPlayer';
+import { MobileControls } from '@/components/MobileControls';
 import { api } from '@/services/api';
 import {
   getInitialGameState,
@@ -16,10 +17,12 @@ import {
   type GameMode,
   type GameState
 } from '@/utils/gameLogic';
-import { Play, Pause, RotateCcw, LogOut, User, Trophy, Eye } from 'lucide-react';
+import { Play, Pause, RotateCcw, LogOut, User, Trophy, Eye, Volume2, VolumeX } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSound } from '@/contexts/SoundContext';
 
 const Index = () => {
+  const { isMuted, toggleMute, playEat, playGameOver, playClick } = useSound();
   const [user, setUser] = useState(api.getCurrentUser());
 
   useEffect(() => {
@@ -78,15 +81,33 @@ const Index = () => {
 
     const speed = calculateGameSpeed(gameState.score);
     const interval = setInterval(() => {
-      setGameState(prev => prev ? moveSnake(prev) : null);
+      setGameState(prev => {
+        if (!prev) return null;
+        const newState = moveSnake(prev);
+        if (newState.score > prev.score) {
+          playEat();
+        }
+        if (newState.isGameOver && !prev.isGameOver) {
+          playGameOver();
+        }
+        return newState;
+      });
     }, speed);
 
     return () => clearInterval(interval);
-  }, [gameState]);
+  }, [gameState, playEat, playGameOver]);
 
   // Keyboard controls
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Ignore key presses if user is typing in an input field
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
       if (e.key === ' ') {
         e.preventDefault();
         togglePause();
@@ -118,7 +139,7 @@ const Index = () => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [changeDirection, togglePause, resetGame]);
+  }, [changeDirection, togglePause, resetGame, playClick]);
 
   // Submit score on game over
   useEffect(() => {
@@ -136,6 +157,14 @@ const Index = () => {
             SNAKE ARENA
           </h1>
           <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleMute}
+              className="text-primary hover:text-primary/90 hover:bg-primary/10"
+            >
+              {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </Button>
             {user ? (
               <>
                 <div className="flex items-center gap-2 px-4 py-2 bg-card rounded border border-primary/50">
@@ -204,7 +233,10 @@ const Index = () => {
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Button
-                      onClick={() => startGame('passthrough')}
+                      onClick={() => {
+                        playClick();
+                        startGame('passthrough');
+                      }}
                       className="h-32 text-lg bg-secondary text-secondary-foreground hover:bg-secondary/90 neon-border"
                     >
                       <div>
@@ -213,7 +245,10 @@ const Index = () => {
                       </div>
                     </Button>
                     <Button
-                      onClick={() => startGame('walls')}
+                      onClick={() => {
+                        playClick();
+                        startGame('walls');
+                      }}
                       className="h-32 text-lg bg-accent text-accent-foreground hover:bg-accent/90 neon-border"
                     >
                       <div>
@@ -244,9 +279,14 @@ const Index = () => {
                     <GameBoard gameState={gameState} />
                   </div>
 
+                  <MobileControls onDirectionChange={changeDirection} />
+
                   <div className="flex gap-2 justify-center">
                     <Button
-                      onClick={togglePause}
+                      onClick={() => {
+                        playClick();
+                        togglePause();
+                      }}
                       disabled={gameState.isGameOver}
                       variant="outline"
                       className="border-secondary text-secondary hover:bg-secondary hover:text-secondary-foreground"
@@ -264,7 +304,10 @@ const Index = () => {
                       )}
                     </Button>
                     <Button
-                      onClick={resetGame}
+                      onClick={() => {
+                        playClick();
+                        resetGame();
+                      }}
                       variant="outline"
                       className="border-accent text-accent hover:bg-accent hover:text-accent-foreground"
                     >
@@ -272,7 +315,10 @@ const Index = () => {
                       Restart
                     </Button>
                     <Button
-                      onClick={() => setGameState(null)}
+                      onClick={() => {
+                        playClick();
+                        setGameState(null);
+                      }}
                       variant="outline"
                     >
                       Change Mode
