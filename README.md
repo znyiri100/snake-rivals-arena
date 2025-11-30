@@ -38,7 +38,15 @@ docker compose up
 open http://localhost:8000
 ```
 
-That's it! The app will be running with:
+### Using Remote Database
+
+To start the application using the remote production database:
+
+```bash
+DATABASE_URL="postgresql+asyncpg://snake_user:pMdiYRvQYAPKaHx4jSt0Oi5WDvQLsEj0@dpg-d4l5fj3uibrs73fris3g-a.oregon-postgres.render.com/snake_rivals" docker compose up -d --build app
+```
+
+### Local Development (Docker)
 - Frontend + Backend: http://localhost:8000
 - API Documentation: http://localhost:8000/api/docs
 - PostgreSQL: localhost:5432

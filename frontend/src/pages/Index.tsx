@@ -4,8 +4,7 @@ import { Card } from '@/components/ui/card';
 import { GameBoard } from '@/components/GameBoard';
 import { LoginModal } from '@/components/LoginModal';
 import { Leaderboard } from '@/components/Leaderboard';
-import { ActiveSessions } from '@/components/ActiveSessions';
-import { WatchPlayer } from '@/components/WatchPlayer';
+
 import { MobileControls } from '@/components/MobileControls';
 import { api } from '@/services/api';
 import {
@@ -36,13 +35,11 @@ const Index = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [watchingSessionId, setWatchingSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'game' | 'leaderboard' | 'watch'>('game');
+  const [view, setView] = useState<'game' | 'leaderboard'>('game');
 
   const startGame = (mode: GameMode) => {
     setSelectedMode(mode);
     setGameState(getInitialGameState(mode));
-    setWatchingSessionId(null);
   };
 
   const resetGame = () => {
@@ -211,14 +208,7 @@ const Index = () => {
           <Trophy className="w-4 h-4 mr-2" />
           Leaderboard
         </Button>
-        <Button
-          variant={view === 'watch' ? 'default' : 'outline'}
-          onClick={() => setView('watch')}
-          className={view === 'watch' ? 'bg-primary text-primary-foreground' : ''}
-        >
-          <Eye className="w-4 h-4 mr-2" />
-          Watch
-        </Button>
+
       </div>
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -279,7 +269,7 @@ const Index = () => {
                     <GameBoard gameState={gameState} />
                   </div>
 
-                  <MobileControls onDirectionChange={changeDirection} />
+                  <MobileControls onDirectionChange={changeDirection} onRestart={resetGame} />
 
                   <div className="flex gap-2 justify-center">
                     <Button
@@ -337,23 +327,17 @@ const Index = () => {
             <Leaderboard gameMode={selectedMode || undefined} />
           )}
 
-          {view === 'watch' && (
-            <>
-              <ActiveSessions onWatchSession={setWatchingSessionId} />
-              {watchingSessionId && (
-                <WatchPlayer
-                  sessionId={watchingSessionId}
-                  onClose={() => setWatchingSessionId(null)}
-                />
-              )}
-            </>
-          )}
+
         </div>
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <Leaderboard gameMode={selectedMode || undefined} />
-          {view === 'game' && <ActiveSessions onWatchSession={setWatchingSessionId} />}
+          <Leaderboard
+            gameMode={selectedMode || undefined}
+            limit={5}
+            title="TOP 5"
+          />
+
         </div>
       </div>
 

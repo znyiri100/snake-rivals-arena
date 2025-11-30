@@ -9,6 +9,18 @@ interface GameBoardProps {
 
 export const GameBoard = ({ gameState, isSpectating = false }: GameBoardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imagesRef = useRef<{ apple: HTMLImageElement; head: HTMLImageElement } | null>(null);
+
+  useEffect(() => {
+    // Load images
+    const appleImg = new Image();
+    appleImg.src = '/apple.png';
+
+    const headImg = new Image();
+    headImg.src = '/snake-head.jpg';
+
+    imagesRef.current = { apple: appleImg, head: headImg };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -38,39 +50,94 @@ export const GameBoard = ({ gameState, isSpectating = false }: GameBoardProps) =
       ctx.stroke();
     }
 
-    // Draw food with glow effect
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = 'hsl(48, 100%, 50%)';
-    ctx.fillStyle = 'hsl(48, 100%, 50%)';
-    ctx.fillRect(
-      gameState.food.x * CELL_SIZE + 2,
-      gameState.food.y * CELL_SIZE + 2,
-      CELL_SIZE - 4,
-      CELL_SIZE - 4
-    );
-    ctx.shadowBlur = 0;
+    // Draw food
+    if (imagesRef.current?.apple.complete) {
+      ctx.drawImage(
+        imagesRef.current.apple,
+        gameState.food.x * CELL_SIZE,
+        gameState.food.y * CELL_SIZE,
+        CELL_SIZE,
+        CELL_SIZE
+      );
+    } else {
+      // Fallback
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = 'hsl(48, 100%, 50%)';
+      ctx.fillStyle = 'hsl(48, 100%, 50%)';
+      ctx.fillRect(
+        gameState.food.x * CELL_SIZE + 2,
+        gameState.food.y * CELL_SIZE + 2,
+        CELL_SIZE - 4,
+        CELL_SIZE - 4
+      );
+      ctx.shadowBlur = 0;
+    }
 
-    // Draw snake with gradient and glow
+    // Draw snake
     gameState.snake.forEach((segment, index) => {
       const isHead = index === 0;
-      
-      if (isHead) {
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = 'hsl(142, 76%, 50%)';
-        ctx.fillStyle = 'hsl(142, 76%, 50%)';
-      } else {
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'hsl(142, 76%, 40%)';
-        const alpha = 1 - (index / gameState.snake.length) * 0.3;
-        ctx.fillStyle = `hsl(142, 76%, ${40 + index * 2}%, ${alpha})`;
-      }
 
-      ctx.fillRect(
-        segment.x * CELL_SIZE + 1,
-        segment.y * CELL_SIZE + 1,
-        CELL_SIZE - 2,
-        CELL_SIZE - 2
-      );
+      if (isHead && imagesRef.current?.head.complete) {
+        // Save context to rotate head
+        ctx.save();
+        const centerX = segment.x * CELL_SIZE + CELL_SIZE / 2;
+        const centerY = segment.y * CELL_SIZE + CELL_SIZE / 2;
+
+        ctx.translate(centerX, centerY);
+
+        // Determine rotation based on direction (if we had previous position, but for now just draw it)
+        // Since we don't have direction easily in segment, we might need to infer it or just draw it upright
+        // For now, let's just draw it. If we want rotation, we need to know where the next segment is.
+        if (gameState.snake.length > 1) {
+          const next = gameState.snake[1];
+          const dx = segment.x - next.x;
+          const dy = segment.y - next.y;
+          let angle = 0;
+          // Assuming the image points UP (towards negative Y) by default
+          if (dx === 1) angle = Math.PI / 2; // Moving Right (head at x, next at x-1) -> rotate 90 deg clockwise from UP
+          else if (dx === -1) angle = -Math.PI / 2; // Moving Left (head at x, next at x+1) -> rotate 90 deg counter-clockwise from UP
+          else if (dy === 1) angle = Math.PI; // Moving Down (head at y, next at y-1) -> rotate 180 deg from UP
+          else if (dy === -1) angle = 0; // Moving Up (head at y, next at y+1) -> no rotation from UP
+
+          ctx.rotate(angle);
+        }
+
+        // Draw circular clip for head
+        const HEAD_SCALE = 1.5;
+        const HEAD_SIZE = CELL_SIZE * HEAD_SCALE;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, HEAD_SIZE / 2, 0, Math.PI * 2);
+        ctx.clip();
+
+        ctx.drawImage(
+          imagesRef.current.head,
+          -HEAD_SIZE / 2,
+          -HEAD_SIZE / 2,
+          HEAD_SIZE,
+          HEAD_SIZE
+        );
+        ctx.restore();
+      } else {
+        if (isHead) {
+          // Fallback for head if image not loaded
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = 'hsl(142, 76%, 50%)';
+          ctx.fillStyle = 'hsl(142, 76%, 50%)';
+        } else {
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = 'hsl(142, 76%, 40%)';
+          const alpha = 1 - (index / gameState.snake.length) * 0.3;
+          ctx.fillStyle = `hsl(142, 76%, ${40 + index * 2}%, ${alpha})`;
+        }
+
+        ctx.fillRect(
+          segment.x * CELL_SIZE + 1,
+          segment.y * CELL_SIZE + 1,
+          CELL_SIZE - 2,
+          CELL_SIZE - 2
+        );
+      }
     });
     ctx.shadowBlur = 0;
 

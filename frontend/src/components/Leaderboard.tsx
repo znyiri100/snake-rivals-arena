@@ -6,9 +6,15 @@ import { Trophy, Medal } from 'lucide-react';
 
 interface LeaderboardProps {
   gameMode?: 'passthrough' | 'walls';
+  limit?: number;
+  title?: string;
 }
 
-export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
+export const Leaderboard = ({
+  gameMode,
+  limit = 10,
+  title = "LEADERBOARD"
+}: LeaderboardProps) => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +27,7 @@ export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
     setIsLoading(true);
     try {
       const data = await api.getLeaderboard(gameMode);
-      setEntries(data.slice(0, 10));
+      setEntries(data.slice(0, limit));
     } catch (error) {
       console.error('Failed to load leaderboard:', error);
       setError('Failed to load leaderboard data');
@@ -41,7 +47,7 @@ export const Leaderboard = ({ gameMode }: LeaderboardProps) => {
     <Card className="bg-card/90 border-border p-4 h-full">
       <h2 className="text-xl font-bold text-primary mb-4 neon-text flex items-center gap-2">
         <Trophy className="w-5 h-5" />
-        LEADERBOARD
+        {title}
       </h2>
 
       {isLoading ? (

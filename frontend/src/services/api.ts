@@ -14,14 +14,7 @@ export interface LeaderboardEntry {
     timestamp: Date;
 }
 
-export interface GameSession {
-    id: string;
-    userId: string;
-    username: string;
-    score: number;
-    gameMode: 'passthrough' | 'walls';
-    isActive: boolean;
-}
+
 
 const API_URL = '/api';
 
@@ -153,23 +146,10 @@ class ApiService {
     }
 
     // Active game sessions
-    async getActiveSessions(): Promise<GameSession[]> {
-        const response = await fetch(`${API_URL}/sessions`);
-        if (!response.ok) return [];
-        return await response.json();
-    }
 
-    async getSessionById(id: string): Promise<GameSession | null> {
-        const response = await fetch(`${API_URL}/sessions/${id}`);
-        if (!response.ok) return null;
-        return await response.json();
-    }
 
     // Simulate active session updates (Not supported by backend yet, so no-op or socket)
-    updateSessionScore(sessionId: string, score: number): void {
-        // This was for local mock updates. Real backend would need WebSockets or polling.
-        // For now, do nothing.
-    }
+
 
     // For testing/reset
     reset(): void {
