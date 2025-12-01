@@ -2,10 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from ..models import User, LoginRequest, SignupRequest, ErrorResponse
-from ..sql_models import User as DBUser
+from ..models import User, LoginRequest, SignupRequest, ErrorResponse, Group
+from ..sql_models import User as DBUser, Group as DBGroup
 from ..db import get_db
 import uuid
+from typing import List
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -22,8 +23,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
         )
     
     user_id = token.replace("mock-token-", "")
-    result = await db.execute(select(DBUser).where(DBUser.id == user_id))
+    user_id = token.replace("mock-token-", "")
+    result = await db.execute(select(DBUser).where(DBUser.id == user_id).execution_options(populate_existing=True))
     user = result.scalars().first()
+    
+    if user:
+        # Ensure groups are loaded
+        await db.refresh(user, attribute_names=["groups"])
     
     if not user:
         raise HTTPException(
@@ -37,6 +43,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(DBUser).where(DBUser.email == request.email))
     user = result.scalars().first()
+    if user:
+         await db.refresh(user, attribute_names=["groups"])
     
     # In a real app, use hashing!
     if not user or user.hashed_password != request.password:
@@ -61,15 +69,57 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
         email=request.email,
         hashed_password=request.password
     )
+    
+    # Handle Groups
+    groups_to_add = []
+    
+    # 1. New Group
+    if request.new_group_name:
+        # Check if exists
+        g_res = await db.execute(select(DBGroup).where(DBGroup.name == request.new_group_name))
+        existing_group = g_res.scalars().first()
+        if not existing_group:
+            new_group = DBGroup(name=request.new_group_name)
+            db.add(new_group)
+            groups_to_add.append(new_group)
+        else:
+            groups_to_add.append(existing_group)
+            
+    # 2. Existing Groups
+    if request.group_ids:
+        for gid in request.group_ids:
+            g_res = await db.execute(select(DBGroup).where(DBGroup.id == gid))
+            grp = g_res.scalars().first()
+            if grp and grp not in groups_to_add:
+                groups_to_add.append(grp)
+                
+    # 3. Default "other" if none
+    if not groups_to_add:
+        g_res = await db.execute(select(DBGroup).where(DBGroup.name == "other"))
+        other_group = g_res.scalars().first()
+        if not other_group:
+            other_group = DBGroup(name="other")
+            db.add(other_group)
+        groups_to_add.append(other_group)
+        
+    new_user.groups = groups_to_add
+
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+    # Refresh groups to ensure they are loaded for the response
+    await db.refresh(new_user, attribute_names=["groups"])
     
     return {
         "success": True, 
         "user": User.model_validate(new_user),
         "token": f"mock-token-{new_user.id}"
     }
+
+@router.get("/groups", response_model=List[Group])
+async def get_groups(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(DBGroup))
+    return result.scalars().all()
 
 @router.post("/logout")
 async def logout():

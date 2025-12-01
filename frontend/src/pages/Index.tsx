@@ -213,7 +213,7 @@ const Index = () => {
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className={`${view === 'leaderboard' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-4`}>
           {view === 'game' && (
             <>
               {!gameState ? (
@@ -324,21 +324,25 @@ const Index = () => {
           )}
 
           {view === 'leaderboard' && (
-            <Leaderboard gameMode={selectedMode || undefined} />
+            <Leaderboard gameMode={selectedMode || undefined} user={user} />
           )}
 
 
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-4">
-          <Leaderboard
-            gameMode={selectedMode || undefined}
-            limit={5}
-            title="TOP 5"
-          />
 
-        </div>
+
+        {/* Sidebar - Only show in game view */}
+        {view === 'game' && (
+          <div className="space-y-4">
+            <Leaderboard
+              gameMode={selectedMode || undefined}
+              limit={5}
+              title="TOP 5"
+              user={user}
+            />
+          </div>
+        )}
       </div>
 
       <LoginModal
@@ -346,7 +350,7 @@ const Index = () => {
         onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
       />
-    </div>
+    </div >
   );
 };
 

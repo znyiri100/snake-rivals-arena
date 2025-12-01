@@ -3,6 +3,8 @@ from sqlalchemy.sql import func
 from .db import Base
 from .models import GameMode
 import uuid
+from sqlalchemy import Table, ForeignKey
+from sqlalchemy.orm import relationship
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -14,6 +16,23 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+
+    groups = relationship("Group", secondary="user_groups", back_populates="users")
+
+user_groups = Table(
+    "user_groups",
+    Base.metadata,
+    Column("user_id", String, ForeignKey("users.id"), primary_key=True),
+    Column("group_id", String, ForeignKey("groups.id"), primary_key=True),
+)
+
+class Group(Base):
+    __tablename__ = "groups"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String, unique=True, index=True)
+
+    users = relationship("User", secondary=user_groups, back_populates="groups")
 
 class LeaderboardEntry(Base):
     __tablename__ = "leaderboard"

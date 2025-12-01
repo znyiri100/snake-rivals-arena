@@ -1,9 +1,15 @@
 // API service interacting with the FastAPI backend
 
+export interface Group {
+    id: string;
+    name: string;
+}
+
 export interface User {
     id: string;
     username: string;
     email: string;
+    groups: Group[];
 }
 
 export interface LeaderboardEntry {
@@ -55,12 +61,18 @@ class ApiService {
         }
     }
 
-    async signup(username: string, email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
+    async signup(username: string, email: string, password: string, newGroupName?: string, groupIds?: string[]): Promise<{ success: boolean; user?: User; error?: string }> {
         try {
             const response = await fetch(`${API_URL}/auth/signup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, email, password }),
+                body: JSON.stringify({
+                    username,
+                    email,
+                    password,
+                    new_group_name: newGroupName,
+                    group_ids: groupIds
+                }),
             });
 
             if (!response.ok) {
@@ -127,10 +139,13 @@ class ApiService {
     }
 
     // Leaderboard
-    async getLeaderboard(gameMode?: 'passthrough' | 'walls'): Promise<LeaderboardEntry[]> {
-        let url = `${API_URL}/leaderboard`;
+    async getLeaderboard(gameMode?: 'passthrough' | 'walls', groupId?: string): Promise<LeaderboardEntry[]> {
+        let url = `${API_URL}/leaderboard?`;
         if (gameMode) {
-            url += `?gameMode=${gameMode}`;
+            url += `gameMode=${gameMode}&`;
+        }
+        if (groupId) {
+            url += `group_id=${groupId}&`;
         }
         const response = await fetch(url);
         if (!response.ok) return [];
@@ -150,6 +165,18 @@ class ApiService {
 
     // Simulate active session updates (Not supported by backend yet, so no-op or socket)
 
+
+    // Groups
+    async getGroups(): Promise<Group[]> {
+        try {
+            const response = await fetch(`${API_URL}/auth/groups`);
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch groups", e);
+            return [];
+        }
+    }
 
     // For testing/reset
     reset(): void {

@@ -7,10 +7,17 @@ class GameMode(str, Enum):
     passthrough = "passthrough"
     walls = "walls"
 
+class Group(BaseModel):
+    id: str
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
 class User(BaseModel):
     id: str
     username: str
     email: str
+    groups: List[Group] = []
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -22,6 +29,8 @@ class SignupRequest(BaseModel):
     username: str
     email: EmailStr
     password: str
+    new_group_name: Optional[str] = None
+    group_ids: Optional[List[str]] = []
 
 class LeaderboardEntry(BaseModel):
     id: str
