@@ -14,7 +14,7 @@ interface LeaderboardProps {
 
 export const Leaderboard = ({
   gameMode,
-  limit = 100,
+  limit,
   title = "High achievers",
   user
 }: LeaderboardProps) => {
@@ -94,10 +94,11 @@ export const Leaderboard = ({
     const loadLeaderboard = async () => {
       setIsLoading(true);
       try {
-        const groupId = selectedGroupId === 'all' ? undefined : selectedGroupId;
-        const data = await api.getLeaderboard(gameMode, groupId);
+        const groupId = selectedGroupId === 'all' ? 'all' : selectedGroupId;
+        const data = await api.getLeaderboard(gameMode, groupId === 'all' ? 'all' : groupId);
         if (active) {
-          setEntries(data.slice(0, limit));
+          // If a limit prop is provided (e.g. sidebar top N), apply it client-side. Otherwise show all results.
+          setEntries(typeof limit === 'number' ? data.slice(0, limit) : data);
         }
       } catch (error) {
         console.error('Failed to load leaderboard:', error);
@@ -172,9 +173,20 @@ export const Leaderboard = ({
                 </div>
                 <div>
                   <div className="font-semibold text-foreground">{entry.username}</div>
-                  <Badge variant="outline" className="text-xs">
-                    {entry.gameMode}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {entry.gameMode}
+                    </Badge>
+                    {entry.groups && entry.groups.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        {entry.groups.map(g => (
+                          <Badge key={g.id} variant="secondary" className="text-xs">
+                            {g.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="text-right">

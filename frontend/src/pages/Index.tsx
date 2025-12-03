@@ -166,7 +166,14 @@ const Index = () => {
               <>
                 <div className="flex items-center gap-2 px-4 py-2 bg-card rounded border border-primary/50">
                   <User className="w-4 h-4 text-secondary" />
-                  <span className="text-foreground font-semibold">{user.username}</span>
+                    <div className="flex flex-col">
+                      <span className="text-foreground font-semibold">{user.username}</span>
+                      <div className="flex items-center gap-1 mt-1">
+                        {user.groups && user.groups.map(g => (
+                          <div key={g.id} className="text-xs text-muted-foreground bg-muted/30 px-2 py-0.5 rounded">{g.name}</div>
+                        ))}
+                      </div>
+                    </div>
                 </div>
                 <Button
                   variant="outline"

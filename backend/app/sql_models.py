@@ -13,17 +13,29 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    username = Column(String, unique=True, index=True)
-    email = Column(String, unique=True, index=True)
+    username = Column(String, index=True)
+    email = Column(String, index=True)
     hashed_password = Column(String)
 
     groups = relationship("Group", secondary="user_groups", back_populates="users")
+
+    __table_args__ = (
+        # Composite unique constraints for (group_id, username) and (group_id, email)
+        # These require the user_groups association table
+        # We'll enforce uniqueness via a partial index on the association table
+    )
+
+from sqlalchemy import UniqueConstraint
 
 user_groups = Table(
     "user_groups",
     Base.metadata,
     Column("user_id", String, ForeignKey("users.id"), primary_key=True),
     Column("group_id", String, ForeignKey("groups.id"), primary_key=True),
+    Column("username", String),
+    Column("email", String),
+    UniqueConstraint("group_id", "username", name="uq_group_username"),
+    UniqueConstraint("group_id", "email", name="uq_group_email"),
 )
 
 class Group(Base):

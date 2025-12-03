@@ -38,6 +38,7 @@ class LeaderboardEntry(BaseModel):
     score: int
     game_mode: GameMode = Field(alias="gameMode")
     timestamp: datetime
+    groups: List[Group] = []
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

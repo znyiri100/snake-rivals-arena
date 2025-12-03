@@ -18,6 +18,7 @@ export interface LeaderboardEntry {
     score: number;
     gameMode: 'passthrough' | 'walls';
     timestamp: Date;
+    groups?: Group[];
 }
 
 
@@ -147,7 +148,7 @@ class ApiService {
         if (groupId) {
             url += `group_id=${groupId}&`;
         }
-        const response = await fetch(url);
+        const response = await fetch(url, { headers: this.getHeaders() });
         if (!response.ok) return [];
         return await response.json();
     }

@@ -12,7 +12,11 @@ export default defineConfig(({ mode }) => ({
       "/api": {
         target: "http://localhost:8000",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
+        // Keep the `/api` prefix when proxying to the backend.
+        // The backend mounts its routers under `/api`, so removing
+        // the prefix caused requests like `/api/leaderboard` to be
+        // forwarded as `/leaderboard` which returned 404.
+        // Removing the rewrite keeps paths intact.
       },
     },
   },

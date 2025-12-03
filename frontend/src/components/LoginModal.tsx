@@ -15,6 +15,7 @@ interface LoginModalProps {
 export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps) => {
   const [isSignup, setIsSignup] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [signupError, setSignupError] = useState<string | null>(null);
   const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [newGroupName, setNewGroupName] = useState('');
@@ -55,8 +56,15 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
           onLoginSuccess();
           onClose();
           // Form reset happens automatically on next mount or we can manually clear
+          setSignupError(null);
         } else {
-          toast.error(result.error || 'Signup failed');
+          // If backend returned a group-specific uniqueness error, show inline guidance
+          if (result.error && result.error.includes('already exists in one of the selected groups')) {
+            setSignupError('That username or email is already used in one of the groups you selected. Choose a different username/email or select different groups.');
+          } else {
+            setSignupError(null);
+            toast.error(result.error || 'Signup failed');
+          }
         }
       } else {
         const result = await api.login(email, password);
@@ -176,6 +184,10 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
                 </div>
               </div>
             </div>
+          )}
+
+          {isSignup && signupError && (
+            <div className="text-sm text-destructive mt-2">{signupError}</div>
           )}
 
           <div className="flex flex-col gap-2">

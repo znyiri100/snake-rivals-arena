@@ -3,7 +3,8 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from ..models import User, LoginRequest, SignupRequest, ErrorResponse, Group
-from ..sql_models import User as DBUser, Group as DBGroup
+from ..sql_models import User as DBUser, Group as DBGroup, user_groups
+from sqlalchemy.exc import IntegrityError
 from ..db import get_db
 import uuid
 from typing import List
@@ -41,13 +42,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
 
 @router.post("/login", response_model=dict)
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(DBUser).where(DBUser.email == request.email))
+    # Try to find a user matching both email and password (avoid ambiguity when duplicates exist across groups)
+    result = await db.execute(select(DBUser).where(DBUser.email == request.email, DBUser.hashed_password == request.password))
     user = result.scalars().first()
     if user:
-         await db.refresh(user, attribute_names=["groups"])
-    
+        await db.refresh(user, attribute_names=["groups"])
+
     # In a real app, use hashing!
-    if not user or user.hashed_password != request.password:
+    if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     return {
@@ -58,24 +60,17 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/signup", response_model=dict)
 async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(DBUser).where(DBUser.email == request.email))
-    existing_user = result.scalars().first()
-    
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already exists")
-    
+    # Do NOT enforce global uniqueness here. Uniqueness will be enforced per-group via the user_groups table constraints.
     new_user = DBUser(
         username=request.username,
         email=request.email,
         hashed_password=request.password
     )
-    
-    # Handle Groups
+
     groups_to_add = []
-    
+
     # 1. New Group
     if request.new_group_name:
-        # Check if exists
         g_res = await db.execute(select(DBGroup).where(DBGroup.name == request.new_group_name))
         existing_group = g_res.scalars().first()
         if not existing_group:
@@ -84,7 +79,7 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
             groups_to_add.append(new_group)
         else:
             groups_to_add.append(existing_group)
-            
+
     # 2. Existing Groups
     if request.group_ids:
         for gid in request.group_ids:
@@ -92,7 +87,7 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
             grp = g_res.scalars().first()
             if grp and grp not in groups_to_add:
                 groups_to_add.append(grp)
-                
+
     # 3. Default "other" if none
     if not groups_to_add:
         g_res = await db.execute(select(DBGroup).where(DBGroup.name == "other"))
@@ -101,17 +96,32 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
             other_group = DBGroup(name="other")
             db.add(other_group)
         groups_to_add.append(other_group)
-        
-    new_user.groups = groups_to_add
 
     db.add(new_user)
-    await db.commit()
+    await db.flush()  # Ensure new_user.id is available
+
+    # Insert into user_groups with username and email for composite uniqueness
+    try:
+        for group in groups_to_add:
+            await db.execute(
+                user_groups.insert().values(
+                    user_id=new_user.id,
+                    group_id=group.id,
+                    username=new_user.username,
+                    email=new_user.email
+                )
+            )
+
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        # Likely a duplicate username/email within one of the selected groups
+        raise HTTPException(status_code=400, detail="Username or email already exists in one of the selected groups")
     await db.refresh(new_user)
-    # Refresh groups to ensure they are loaded for the response
     await db.refresh(new_user, attribute_names=["groups"])
-    
+
     return {
-        "success": True, 
+        "success": True,
         "user": User.model_validate(new_user),
         "token": f"mock-token-{new_user.id}"
     }
