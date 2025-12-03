@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <style>
+      .entity-box { fill: #f9f9f9; stroke: #333; stroke-width: 2; }
+      .entity-title { fill: #333; font-size: 14px; font-weight: bold; }
+      .entity-field { fill: #555; font-size: 12px; font-family: monospace; }
+      .relationship-line { stroke: #666; stroke-width: 2; fill: none; }
+      .relationship-label { fill: #666; font-size: 11px; }
+    </style>
+  </defs>
+
+  <!-- USERS Entity -->
+  <g id="users">
+    <rect x="50" y="150" width="200" height="120" class="entity-box"/>
+    <text x="60" y="170" class="entity-title">USERS</text>
+    <line x1="50" y1="180" x2="250" y2="180" stroke="#ccc"/>
+    <text x="60" y="195" class="entity-field">id: STRING PK (UUID)</text>
+    <text x="60" y="210" class="entity-field">username: STRING UNIQUE</text>
+    <text x="60" y="225" class="entity-field">email: STRING UNIQUE</text>
+    <text x="60" y="240" class="entity-field">hashed_password: STRING</text>
+    <text x="60" y="255" class="entity-field">groups: Relationship</text>
+  </g>
+
+  <!-- GROUPS Entity -->
+  <g id="groups">
+    <rect x="700" y="150" width="200" height="80" class="entity-box"/>
+    <text x="710" y="170" class="entity-title">GROUPS</text>
+    <line x1="700" y1="180" x2="900" y2="180" stroke="#ccc"/>
+    <text x="710" y="195" class="entity-field">id: STRING PK (UUID)</text>
+    <text x="710" y="210" class="entity-field">name: STRING UNIQUE</text>
+    <text x="710" y="225" class="entity-field">users: Relationship</text>
+  </g>
+
+  <!-- USER_GROUPS Association Table -->
+  <g id="user_groups">
+    <rect x="375" y="120" width="200" height="100" class="entity-box"/>
+    <text x="385" y="140" class="entity-title">USER_GROUPS</text>
+    <line x1="375" y1="150" x2="575" y2="150" stroke="#ccc"/>
+    <text x="385" y="165" class="entity-field">user_id: STRING PK FK</text>
+    <text x="385" y="180" class="entity-field">group_id: STRING PK FK</text>
+    <text x="385" y="195" class="entity-field">(Association Table)</text>
+  </g>
+
+  <!-- LEADERBOARD Entity -->
+  <g id="leaderboard">
+    <rect x="50" y="400" width="220" height="130" class="entity-box"/>
+    <text x="60" y="420" class="entity-title">LEADERBOARD</text>
+    <line x1="50" y1="430" x2="270" y2="430" stroke="#ccc"/>
+    <text x="60" y="445" class="entity-field">id: STRING PK (UUID)</text>
+    <text x="60" y="460" class="entity-field">username: STRING (snapshot)</text>
+    <text x="60" y="475" class="entity-field">score: INTEGER</text>
+    <text x="60" y="490" class="entity-field">game_mode: GameMode ENUM</text>
+    <text x="60" y="505" class="entity-field">timestamp: DATETIME</text>
+  </g>
+
+  <!-- SESSIONS Entity -->
+  <g id="sessions">
+    <rect x="700" y="400" width="230" height="130" class="entity-box"/>
+    <text x="710" y="420" class="entity-title">SESSIONS</text>
+    <line x1="700" y1="430" x2="930" y2="430" stroke="#ccc"/>
+    <text x="710" y="445" class="entity-field">id: STRING PK (UUID)</text>
+    <text x="710" y="460" class="entity-field">user_id: STRING (indexed)</text>
+    <text x="710" y="475" class="entity-field">username: STRING (snapshot)</text>
+    <text x="710" y="490" class="entity-field">score: INTEGER (default 0)</text>
+    <text x="710" y="505" class="entity-field">game_mode: GameMode ENUM</text>
+  </g>
+
+  <!-- Relationship Lines -->
+  <!-- USERS to USER_GROUPS -->
+  <line x1="250" y1="210" x2="375" y2="170" class="relationship-line"/>
+  <text x="280" y="185" class="relationship-label">1:N</text>
+
+  <!-- GROUPS to USER_GROUPS -->
+  <line x1="700" y1="190" x2="575" y2="170" class="relationship-line"/>
+  <text x="620" y="175" class="relationship-label">1:N</text>
+
+  <!-- USERS to LEADERBOARD -->
+  <line x1="150" y1="270" x2="150" y2="400" class="relationship-line"/>
+  <text x="155" y="335" class="relationship-label">1:N (via snapshot)</text>
+
+  <!-- USERS to SESSIONS -->
+  <line x1="250" y1="270" x2="815" y2="400" class="relationship-line"/>
+  <text x="450" y="325" class="relationship-label">1:N (logical)</text>
+
+  <!-- Legend -->
+  <g id="legend">
+    <text x="50" y="750" class="entity-field" style="font-size: 12px;">PK = Primary Key | FK = Foreign Key | 1:N = One-to-Many</text>
+  </g>
+</svg>

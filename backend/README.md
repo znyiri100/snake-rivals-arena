@@ -22,3 +22,74 @@ PYTHONPATH=. uv run pytest
 Once the server is running, visit:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+
+## Data Model
+
+See the **Entity-Relationship (ER) Diagram** in [`../docs/ER_DIAGRAM.svg`](../docs/ER_DIAGRAM.svg) and [`../docs/ER_DIAGRAM.mmd`](../docs/ER_DIAGRAM.mmd) (Mermaid format).
+
+### Overview
+
+The backend uses **SQLAlchemy** for ORM and **Pydantic** for validation/serialization:
+- `backend/app/sql_models.py`: Database models (SQLAlchemy ORM classes)
+- `backend/app/models.py`: API schemas (Pydantic models for request/response validation)
+- `backend/app/db.py`: Database engine, session factory, and initialization
+
+### Core Entities
+
+#### **Users** (`users` table)
+- `id` (String UUID, PK): Unique user identifier
+- `username` (String, unique, indexed): User login name
+- `email` (String, unique, indexed): User email address
+- `hashed_password` (String): Bcrypt/argon2 hashed password
+- **Relationships**: Many-to-many with `groups` via `user_groups` association table
+
+#### **Groups** (`groups` table)
+- `id` (String UUID, PK): Unique group identifier
+- `name` (String, unique, indexed): Group display name
+- **Relationships**: Many-to-many with `users` via `user_groups` association table
+
+#### **UserGroups** (`user_groups` association table)
+- Composite PK: `user_id` (FK → users.id), `group_id` (FK → groups.id)
+- Purpose: Implements many-to-many relationship between users and groups
+
+#### **Leaderboard** (`leaderboard` table)
+- `id` (String UUID, PK): Entry identifier
+- `username` (String, indexed): Username snapshot at time of score entry
+- `score` (Integer): Game score
+- `game_mode` (Enum: `passthrough` or `walls`): Game mode
+- `timestamp` (DateTime, server default: now): When entry was created
+- **Note**: Stores username snapshot (not FK) so entries persist even if username changes
+
+#### **Sessions** (`sessions` table)
+- `id` (String UUID, PK): Session identifier
+- `user_id` (String, indexed): Reference to user (currently not a DB foreign key—consider adding for integrity)
+- `username` (String): Username snapshot for session
+- `score` (Integer, default 0): Current session score
+- `game_mode` (Enum): Game mode for this session
+- `is_active` (Boolean, default True): Whether session is active
+- **Relationships**: Logically one User → many Sessions (no DB-enforced FK currently)
+
+### Enums
+
+- **GameMode**: `"passthrough"` or `"walls"` — defines game difficulty/variant
+
+### Database Configuration
+
+The database URL is controlled by the `DATABASE_URL` environment variable:
+- **Development**: Defaults to `sqlite+aiosqlite:///./test.db` (SQLite with async support)
+- **Production**: Use `postgresql+asyncpg://user:password@host/dbname` (PostgreSQL with async support)
+
+The backend automatically converts `postgres://` URLs to `postgresql+asyncpg://` for Render/Heroku compatibility.
+
+### Migrations
+
+- **Development**: `init_db()` in `db.py` calls `Base.metadata.create_all` to auto-create tables
+- **Production**: Use **Alembic** for schema migrations (not configured in this prototype; see `pyproject.toml` for migration framework setup)
+
+### Design Notes
+
+- All primary keys are **UUID strings** (not auto-incrementing integers)
+- `user_groups` enforces referential integrity for user–group links
+- `sessions.user_id` is indexed but not a DB foreign key (simplifies session logic; consider adding FK for stricter integrity)
+- `leaderboard` intentionally stores `username` snapshots for historical accuracy (entries survive username changes)
+- Pydantic models use field aliases (e.g., `gameMode`, `userId`, `isActive`) to match frontend camelCase conventions; `populate_by_name=True` allows both field name and alias in requests/responses
