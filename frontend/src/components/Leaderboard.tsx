@@ -6,7 +6,7 @@ import { Trophy, Medal, Users } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface LeaderboardProps {
-  gameMode?: 'snake' | 'minesweeper';
+  gameMode?: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris';
   limit?: number;
   title?: string;
   user?: User | null;
@@ -175,7 +175,10 @@ export const Leaderboard = ({
                   <div className="font-semibold text-foreground">{entry.username}</div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
-                      {entry.gameMode === 'snake' ? 'Snake' : 'Minesweeper'}
+                      {entry.gameMode === 'snake' ? '🐍 Snake' :
+                        entry.gameMode === 'minesweeper' ? '💣 Minesweeper' :
+                          entry.gameMode === 'space_invaders' ? '🚀 Space Invaders' :
+                            entry.gameMode === 'tetris' ? '🟦 Tetris' : entry.gameMode}
                     </Badge>
                     {entry.groups && entry.groups.length > 0 && (
                       <div className="flex items-center gap-1">

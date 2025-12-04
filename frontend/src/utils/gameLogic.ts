@@ -1,7 +1,7 @@
 // Game logic utilities
 
 export type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
-export type GameMode = 'snake' | 'minesweeper';
+export type GameMode = 'snake' | 'minesweeper' | 'space_invaders' | 'tetris';
 
 export interface Position {
   x: number;

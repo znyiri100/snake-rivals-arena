@@ -6,6 +6,8 @@ from enum import Enum
 class GameMode(str, Enum):
     snake = "snake"
     minesweeper = "minesweeper"
+    space_invaders = "space_invaders"
+    tetris = "tetris"
 
 class Group(BaseModel):
     id: str

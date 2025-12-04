@@ -16,7 +16,7 @@ export interface LeaderboardEntry {
     id: string;
     username: string;
     score: number;
-    gameMode: 'snake' | 'minesweeper';
+    gameMode: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris';
     timestamp: Date;
     groups?: Group[];
 }
@@ -140,7 +140,7 @@ class ApiService {
     }
 
     // Leaderboard
-    async getLeaderboard(gameMode?: 'snake' | 'minesweeper', groupId?: string): Promise<LeaderboardEntry[]> {
+    async getLeaderboard(gameMode?: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris', groupId?: string): Promise<LeaderboardEntry[]> {
         let url = `${API_URL}/leaderboard?`;
         if (gameMode) {
             url += `gameMode=${gameMode}&`;
@@ -153,7 +153,7 @@ class ApiService {
         return await response.json();
     }
 
-    async submitScore(score: number, gameMode: 'snake' | 'minesweeper'): Promise<void> {
+    async submitScore(score: number, gameMode: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris'): Promise<void> {
         await fetch(`${API_URL}/leaderboard`, {
             method: 'POST',
             headers: this.getHeaders(),

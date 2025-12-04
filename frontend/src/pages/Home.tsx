@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Gamepad2, Bomb, User, LogOut, Volume2, VolumeX } from 'lucide-react';
+import { Gamepad2, Bomb, Rocket, Grid3x3, User, LogOut, Volume2, VolumeX } from 'lucide-react';
 import { useSound } from '@/contexts/SoundContext';
 import { api } from '@/services/api';
 import { LoginModal } from '@/components/LoginModal';
@@ -123,7 +123,7 @@ const Home = () => {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 w-full max-w-7xl">
                     <Link to="/snake" onClick={playClick}>
                         <Card className="group relative overflow-hidden p-8 h-80 flex flex-col items-center justify-center gap-6 bg-card/90 border-2 border-primary/50 hover:border-primary transition-all duration-300 hover:scale-105 cursor-pointer neon-border">
                             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -142,6 +142,28 @@ const Home = () => {
                             <div className="text-center z-10">
                                 <h2 className="text-3xl font-bold text-foreground mb-2 font-orbitron">MINESWEEPER</h2>
                                 <p className="text-muted-foreground">Clear the minefield without detonating</p>
+                            </div>
+                        </Card>
+                    </Link>
+
+                    <Link to="/space-invaders" onClick={playClick}>
+                        <Card className="group relative overflow-hidden p-8 h-80 flex flex-col items-center justify-center gap-6 bg-card/90 border-2 border-accent/50 hover:border-accent transition-all duration-300 hover:scale-105 cursor-pointer neon-border">
+                            <div className="absolute inset-0 bg-gradient-to-br from-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <Rocket className="w-24 h-24 text-accent group-hover:text-accent/80 transition-colors duration-300" />
+                            <div className="text-center z-10">
+                                <h2 className="text-3xl font-bold text-foreground mb-2 font-orbitron">SPACE INVADERS</h2>
+                                <p className="text-muted-foreground">Defend Earth from alien invasion</p>
+                            </div>
+                        </Card>
+                    </Link>
+
+                    <Link to="/tetris" onClick={playClick}>
+                        <Card className="group relative overflow-hidden p-8 h-80 flex flex-col items-center justify-center gap-6 bg-card/90 border-2 border-secondary/50 hover:border-secondary transition-all duration-300 hover:scale-105 cursor-pointer neon-border">
+                            <div className="absolute inset-0 bg-gradient-to-br from-secondary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <Grid3x3 className="w-24 h-24 text-secondary group-hover:text-secondary/80 transition-colors duration-300" />
+                            <div className="text-center z-10">
+                                <h2 className="text-3xl font-bold text-foreground mb-2 font-orbitron">TETRIS</h2>
+                                <p className="text-muted-foreground">Stack blocks and clear lines</p>
                             </div>
                         </Card>
                     </Link>
