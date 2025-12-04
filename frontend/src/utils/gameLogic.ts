@@ -77,6 +77,8 @@ export const getNextPosition = (head: Position, direction: Direction): Position 
 
 
 
+
+
 export const checkWallCollision = (position: Position): boolean => {
   return (
     position.x < 0 ||

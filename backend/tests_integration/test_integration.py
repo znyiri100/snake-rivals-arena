@@ -48,13 +48,13 @@ async def test_leaderboard_flow(client: AsyncClient):
     # 2. Submit Score
     score_payload = {
         "score": 500,
-        "gameMode": "walls"
+        "gameMode": "snake"
     }
     response = await client.post("/leaderboard", json=score_payload, headers=headers)
     assert response.status_code == 200
     
     # 3. Get Leaderboard
-    response = await client.get("/leaderboard?gameMode=walls")
+    response = await client.get("/leaderboard?gameMode=snake")
     assert response.status_code == 200
     entries = response.json()
     assert len(entries) > 0

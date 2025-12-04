@@ -7,16 +7,15 @@ def test_leaderboard_entry_alias():
         id="123",
         username="testuser",
         score=100,
-        gameMode="walls",
+        gameMode="snake",
         timestamp=datetime.now()
     )
-    assert entry.game_mode == GameMode.walls
+    assert entry.game_mode == GameMode.snake
     # Check serialization uses alias
     dump = entry.model_dump(by_alias=True)
     assert "gameMode" in dump
-    assert dump["gameMode"] == "walls"
+    assert dump["gameMode"] == "snake"
 
 def test_gamemode_enum():
     """Test GameMode enum values"""
-    assert GameMode.walls == "walls"
-    assert GameMode.passthrough == "passthrough"
+    assert GameMode.snake == "snake"
