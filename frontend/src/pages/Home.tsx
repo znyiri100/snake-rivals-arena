@@ -8,9 +8,11 @@ import { api } from '@/services/api';
 import { LoginModal } from '@/components/LoginModal';
 import { Leaderboard } from '@/components/Leaderboard';
 import { toast } from 'sonner';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Slider } from '@/components/ui/slider';
 
 const Home = () => {
-    const { playClick, isMuted, toggleMute } = useSound();
+    const { playClick, isMuted, toggleMute, volume, setVolume } = useSound();
     const [user, setUser] = useState(api.getCurrentUser());
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
@@ -36,14 +38,48 @@ const Home = () => {
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4 flex flex-col">
             {/* Header */}
             <header className="max-w-7xl mx-auto w-full mb-8 flex justify-end items-center gap-4">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleMute}
-                    className="text-primary hover:text-primary/90 hover:bg-primary/10"
-                >
-                    {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                </Button>
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-primary hover:text-primary/90 hover:bg-primary/10"
+                        >
+                            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 bg-card border-primary/20">
+                        <div className="grid gap-4">
+                            <div className="flex items-center justify-between">
+                                <h4 className="font-medium leading-none text-primary neon-text">SOUND</h4>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={toggleMute}
+                                    className="h-6 w-6"
+                                >
+                                    {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                                </Button>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <Volume2 className="w-4 h-4 text-muted-foreground" />
+                                <Slider
+                                    value={[isMuted ? 0 : volume * 100]}
+                                    max={100}
+                                    step={1}
+                                    onValueChange={(value) => {
+                                        if (isMuted && value[0] > 0) toggleMute();
+                                        setVolume(value[0] / 100);
+                                    }}
+                                    className="flex-1"
+                                />
+                                <span className="w-8 text-right text-sm text-muted-foreground">
+                                    {Math.round(volume * 100)}
+                                </span>
+                            </div>
+                        </div>
+                    </PopoverContent>
+                </Popover>
                 {user ? (
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2 px-4 py-2 bg-card rounded border border-primary/50">
@@ -113,7 +149,7 @@ const Home = () => {
 
                 {/* Leaderboard Section */}
                 <div className="w-full max-w-4xl">
-                    <Leaderboard user={user} limit={10} title="GLOBAL LEADERBOARD" />
+                    <Leaderboard user={user} limit={10} title="LEADERBOARD" />
                 </div>
             </div>
 

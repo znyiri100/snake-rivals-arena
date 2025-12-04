@@ -16,6 +16,7 @@ export interface MinesweeperState {
     isGameOver: boolean;
     isWon: boolean;
     minesLeft: number; // For display (total mines - flags)
+    score: number;
 }
 
 export const createBoard = (rows: number, cols: number, mineCount: number): Cell[][] => {
@@ -79,12 +80,13 @@ export const revealCell = (
     grid: Cell[][],
     x: number,
     y: number
-): { grid: Cell[][]; isGameOver: boolean; isWon: boolean } => {
+): { grid: Cell[][]; isGameOver: boolean; isWon: boolean; scoreIncrease: number } => {
     const newGrid = grid.map((row) => row.map((cell) => ({ ...cell })));
     const cell = newGrid[y][x];
+    let scoreIncrease = 0;
 
     if (cell.status !== 'hidden') {
-        return { grid: newGrid, isGameOver: false, isWon: false };
+        return { grid: newGrid, isGameOver: false, isWon: false, scoreIncrease: 0 };
     }
 
     if (cell.isMine) {
@@ -95,7 +97,7 @@ export const revealCell = (
                 if (c.isMine) c.status = 'exploded';
             })
         );
-        return { grid: newGrid, isGameOver: true, isWon: false };
+        return { grid: newGrid, isGameOver: true, isWon: false, scoreIncrease: 0 };
     }
 
     // Flood fill
@@ -107,6 +109,7 @@ export const revealCell = (
         if (currentCell.status !== 'hidden') continue;
 
         currentCell.status = 'revealed';
+        scoreIncrease += 10; // 10 points per revealed cell
 
         if (currentCell.neighborMines === 0) {
             for (let dy = -1; dy <= 1; dy++) {
@@ -131,12 +134,17 @@ export const revealCell = (
     const isWon = checkWin(newGrid);
     if (isWon) {
         // Flag all mines on win
+        let mineCount = 0;
         newGrid.forEach(row => row.forEach(c => {
-            if (c.isMine) c.status = 'flagged';
+            if (c.isMine) {
+                c.status = 'flagged';
+                mineCount++;
+            }
         }));
+        scoreIncrease += mineCount * 100; // Bonus for winning
     }
 
-    return { grid: newGrid, isGameOver: false, isWon };
+    return { grid: newGrid, isGameOver: false, isWon, scoreIncrease };
 };
 
 export const toggleFlag = (

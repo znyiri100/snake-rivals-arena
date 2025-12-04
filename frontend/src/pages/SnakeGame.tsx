@@ -30,8 +30,8 @@ const SnakeGame = () => {
         initUser();
     }, []);
 
-    const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
-    const [gameState, setGameState] = useState<GameState | null>(null);
+    const [selectedMode, setSelectedMode] = useState<GameMode>('snake');
+    const [gameState, setGameState] = useState<GameState | null>(getInitialGameState('snake'));
 
     const startGame = (mode: GameMode) => {
         setSelectedMode(mode);
@@ -39,9 +39,7 @@ const SnakeGame = () => {
     };
 
     const resetGame = () => {
-        if (selectedMode) {
-            setGameState(getInitialGameState(selectedMode));
-        }
+        setGameState(getInitialGameState('snake'));
     };
 
     const togglePause = () => {
@@ -126,10 +124,10 @@ const SnakeGame = () => {
 
     // Submit score on game over
     useEffect(() => {
-        if (gameState?.isGameOver && user && selectedMode) {
-            api.submitScore(gameState.score, selectedMode);
+        if (gameState?.isGameOver && user) {
+            api.submitScore(gameState.score, 'snake');
         }
-    }, [gameState?.isGameOver, user, selectedMode]);
+    }, [gameState?.isGameOver, user]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4 flex flex-col items-center">
@@ -149,45 +147,13 @@ const SnakeGame = () => {
             </div>
 
             <div className="w-full max-w-4xl">
-                {!gameState ? (
-                    <Card className="p-8 text-center bg-card/90 border-2 border-primary/50">
-                        <h2 className="text-2xl font-bold mb-6 text-primary neon-text">
-                            SELECT GAME MODE
-                        </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Button
-                                onClick={() => {
-                                    playClick();
-                                    startGame('passthrough');
-                                }}
-                                className="h-32 text-lg bg-secondary text-secondary-foreground hover:bg-secondary/90 neon-border"
-                            >
-                                <div>
-                                    <div className="font-bold mb-2">PASS-THROUGH</div>
-                                    <div className="text-sm opacity-90">Go through walls</div>
-                                </div>
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    playClick();
-                                    startGame('walls');
-                                }}
-                                className="h-32 text-lg bg-accent text-accent-foreground hover:bg-accent/90 neon-border"
-                            >
-                                <div>
-                                    <div className="font-bold mb-2">WALLS</div>
-                                    <div className="text-sm opacity-90">Walls are deadly</div>
-                                </div>
-                            </Button>
-                        </div>
-                    </Card>
-                ) : (
+                {gameState && (
                     <Card className="p-6 bg-card/90 border-2 border-primary/50">
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <div className="text-sm text-muted-foreground">Mode</div>
                                 <div className="text-lg font-bold text-foreground uppercase">
-                                    {selectedMode}
+                                    SNAKE
                                 </div>
                             </div>
                             <div>
@@ -236,15 +202,6 @@ const SnakeGame = () => {
                             >
                                 <RotateCcw className="w-4 h-4 mr-2" />
                                 Restart
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    playClick();
-                                    setGameState(null);
-                                }}
-                                variant="outline"
-                            >
-                                Change Mode
                             </Button>
                         </div>
 

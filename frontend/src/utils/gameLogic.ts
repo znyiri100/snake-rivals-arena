@@ -1,7 +1,7 @@
 // Game logic utilities
 
 export type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
-export type GameMode = 'passthrough' | 'walls';
+export type GameMode = 'snake' | 'minesweeper';
 
 export interface Position {
   x: number;
@@ -23,19 +23,21 @@ export const CELL_SIZE = 20;
 export const INITIAL_SPEED = 150;
 export const SPEED_INCREMENT = 5;
 
-export const getInitialGameState = (gameMode: GameMode): GameState => ({
-  snake: [
-    { x: 10, y: 10 },
-    { x: 9, y: 10 },
-    { x: 8, y: 10 },
-  ],
-  food: generateFood([{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }]),
-  direction: 'RIGHT',
-  score: 0,
-  isGameOver: false,
-  isPaused: false,
-  gameMode,
-});
+export const getInitialGameState = (mode: GameMode): GameState => {
+  return {
+    snake: [
+      { x: 10, y: 10 },
+      { x: 10, y: 11 },
+      { x: 10, y: 12 },
+    ],
+    food: { x: 15, y: 10 },
+    direction: 'UP',
+    score: 0,
+    isGameOver: false,
+    isPaused: false,
+    gameMode: mode,
+  };
+};
 
 export const generateFood = (snake: Position[]): Position => {
   let food: Position;
@@ -65,7 +67,7 @@ export const getNextPosition = (head: Position, direction: Direction): Position 
     LEFT: { x: -1, y: 0 },
     RIGHT: { x: 1, y: 0 },
   };
-  
+
   const movement = movements[direction];
   return {
     x: head.x + movement.x,
@@ -73,12 +75,7 @@ export const getNextPosition = (head: Position, direction: Direction): Position 
   };
 };
 
-export const handlePassthrough = (position: Position): Position => {
-  return {
-    x: (position.x + GRID_SIZE) % GRID_SIZE,
-    y: (position.y + GRID_SIZE) % GRID_SIZE,
-  };
-};
+
 
 export const checkWallCollision = (position: Position): boolean => {
   return (
@@ -106,9 +103,7 @@ export const moveSnake = (state: GameState): GameState => {
   let newHead = getNextPosition(head, state.direction);
 
   // Handle game mode specific behavior
-  if (state.gameMode === 'passthrough') {
-    newHead = handlePassthrough(newHead);
-  } else if (checkWallCollision(newHead)) {
+  if (state.gameMode === 'snake' && checkWallCollision(newHead)) {
     return { ...state, isGameOver: true };
   }
 
@@ -118,7 +113,7 @@ export const moveSnake = (state: GameState): GameState => {
   }
 
   const newSnake = [newHead, ...state.snake];
-  
+
   // Check food collision
   if (checkFoodCollision(newHead, state.food)) {
     return {

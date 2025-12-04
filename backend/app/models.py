@@ -4,8 +4,8 @@ from datetime import datetime
 from enum import Enum
 
 class GameMode(str, Enum):
-    passthrough = "passthrough"
-    walls = "walls"
+    snake = "snake"
+    minesweeper = "minesweeper"
 
 class Group(BaseModel):
     id: str

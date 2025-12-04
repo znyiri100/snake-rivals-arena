@@ -8,7 +8,7 @@ class SoundManager {
         return this.audioContext;
     }
 
-    playEat() {
+    playEat(volume: number = 1) {
         try {
             const ctx = this.getContext();
             const osc = ctx.createOscillator();
@@ -21,8 +21,8 @@ class SoundManager {
             osc.frequency.setValueAtTime(600, ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
 
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1 * volume, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01 * volume, ctx.currentTime + 0.1);
 
             osc.start();
             osc.stop(ctx.currentTime + 0.1);
@@ -31,7 +31,7 @@ class SoundManager {
         }
     }
 
-    playGameOver() {
+    playGameOver(volume: number = 1) {
         try {
             const ctx = this.getContext();
             const osc = ctx.createOscillator();
@@ -44,8 +44,8 @@ class SoundManager {
             osc.frequency.setValueAtTime(200, ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.5);
 
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.1 * volume, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01 * volume, ctx.currentTime + 0.5);
 
             osc.start();
             osc.stop(ctx.currentTime + 0.5);
@@ -54,7 +54,7 @@ class SoundManager {
         }
     }
 
-    playClick() {
+    playClick(volume: number = 1) {
         try {
             const ctx = this.getContext();
             const osc = ctx.createOscillator();
@@ -66,8 +66,8 @@ class SoundManager {
             osc.type = 'square';
             osc.frequency.setValueAtTime(400, ctx.currentTime);
 
-            gain.gain.setValueAtTime(0.05, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+            gain.gain.setValueAtTime(0.05 * volume, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01 * volume, ctx.currentTime + 0.05);
 
             osc.start();
             osc.stop(ctx.currentTime + 0.05);

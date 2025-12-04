@@ -12,9 +12,20 @@ import { Play, RotateCcw, ArrowLeft, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSound } from '@/contexts/SoundContext';
 import { toast } from 'sonner';
+import { api } from '@/services/api';
 
 const Minesweeper = () => {
     const { playClick, playGameOver, playEat } = useSound(); // Reusing playEat for reveal/flag for now
+    const [user, setUser] = useState(api.getCurrentUser());
+
+    useEffect(() => {
+        const initUser = async () => {
+            const u = await api.fetchCurrentUser();
+            setUser(u);
+        };
+        initUser();
+    }, []);
+
     const [gameState, setGameState] = useState<MinesweeperState>(() => {
         const rows = 10;
         const cols = 10;
@@ -27,9 +38,9 @@ const Minesweeper = () => {
             isGameOver: false,
             isWon: false,
             minesLeft: mineCount,
+            score: 0,
         };
     });
-
 
 
     const startNewGame = () => {
@@ -40,6 +51,7 @@ const Minesweeper = () => {
             isGameOver: false,
             isWon: false,
             minesLeft: gameState.mineCount,
+            score: 0,
         });
     };
 
@@ -47,14 +59,22 @@ const Minesweeper = () => {
         if (gameState.isGameOver || gameState.grid[y][x].status === 'flagged') return;
 
         playClick();
-        const { grid, isGameOver, isWon } = revealCell(gameState.grid, x, y);
+        const { grid, isGameOver, isWon, scoreIncrease } = revealCell(gameState.grid, x, y);
+
+        const newScore = gameState.score + scoreIncrease;
 
         if (isGameOver) {
             playGameOver();
             toast.error('Game Over! You hit a mine.');
+            if (user) {
+                api.submitScore(newScore, 'minesweeper');
+            }
         } else if (isWon) {
             // playWin(); // Need to add win sound or reuse
             toast.success('Congratulations! You won!');
+            if (user) {
+                api.submitScore(newScore, 'minesweeper');
+            }
         }
 
         setGameState({
@@ -62,6 +82,7 @@ const Minesweeper = () => {
             grid,
             isGameOver,
             isWon,
+            score: newScore,
         });
     };
 
@@ -97,6 +118,9 @@ const Minesweeper = () => {
                 <div className="flex w-full justify-between items-center px-4">
                     <div className="text-xl font-bold text-destructive">
                         Mines: {gameState.minesLeft}
+                    </div>
+                    <div className="text-xl font-bold text-primary neon-text">
+                        Score: {gameState.score}
                     </div>
                     <Button onClick={startNewGame} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
                         <RotateCcw className="w-4 h-4 mr-2" />
