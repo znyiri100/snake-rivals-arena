@@ -6,7 +6,7 @@ import { Gamepad2, Bomb, Rocket, Grid3x3, User, LogOut, Volume2, VolumeX } from 
 import { useSound } from '@/contexts/SoundContext';
 import { api } from '@/services/api';
 import { LoginModal } from '@/components/LoginModal';
-import { Leaderboard } from '@/components/Leaderboard';
+import { ScoreReports } from '@/components/ScoreReports';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
@@ -169,9 +169,9 @@ const Home = () => {
                     </Link>
                 </div>
 
-                {/* Leaderboard Section */}
-                <div className="w-full max-w-4xl">
-                    <Leaderboard user={user} limit={10} title="LEADERBOARD" />
+                {/* Score Reports Section */}
+                <div className="w-full max-w-6xl">
+                    <ScoreReports user={user} />
                 </div>
             </div>
 

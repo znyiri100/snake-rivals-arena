@@ -21,6 +21,34 @@ export interface LeaderboardEntry {
     groups?: Group[];
 }
 
+export interface RankedScore {
+    id: string;
+    username: string;
+    score: number;
+    game_mode: string;
+    rank: number;
+    timestamp: Date;
+    groups?: Group[];
+}
+
+export interface UserGameModeRank {
+    username: string;
+    game_mode: string;
+    best_score: number;
+    games_played: number;
+    rank: number;
+    groups?: Group[];
+}
+
+export interface OverallRanking {
+    username: string;
+    modes_played: number;
+    total_best_scores: number;
+    avg_rank: number;
+    overall_rank: number;
+    groups?: Group[];
+}
+
 
 
 const API_URL = '/api';
@@ -178,6 +206,73 @@ class ApiService {
             return await response.json();
         } catch (e) {
             console.error("Failed to fetch groups", e);
+            return [];
+        }
+    }
+
+    // Ranking endpoints
+    async getAllScoresRanked(gameMode?: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris', groupId?: string): Promise<RankedScore[]> {
+        let url = `${API_URL}/leaderboard/rankings/all-scores?`;
+        if (gameMode) {
+            url += `gameMode=${gameMode}&`;
+        }
+        if (groupId) {
+            url += `group_id=${groupId}&`;
+        }
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch all scores ranked", e);
+            return [];
+        }
+    }
+
+    async getBestPerUserPerMode(gameMode?: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris', groupId?: string): Promise<UserGameModeRank[]> {
+        let url = `${API_URL}/leaderboard/rankings/best-per-user?`;
+        if (gameMode) {
+            url += `gameMode=${gameMode}&`;
+        }
+        if (groupId) {
+            url += `group_id=${groupId}&`;
+        }
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch best per user", e);
+            return [];
+        }
+    }
+
+    async getTopNPerMode(limit: number = 10, groupId?: string): Promise<Record<string, UserGameModeRank[]>> {
+        let url = `${API_URL}/leaderboard/rankings/top-n?limit=${limit}`;
+        if (groupId) {
+            url += `&group_id=${groupId}`;
+        }
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return {};
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch top N per mode", e);
+            return {};
+        }
+    }
+
+    async getOverallRankings(groupId?: string): Promise<OverallRanking[]> {
+        let url = `${API_URL}/leaderboard/rankings/overall?`;
+        if (groupId) {
+            url += `group_id=${groupId}`;
+        }
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch overall rankings", e);
             return [];
         }
     }

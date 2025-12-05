@@ -96,3 +96,277 @@ async def submit_score(submission: ScoreSubmission, current_user: DBUser = Depen
     db.add(entry)
     await db.commit()
     return {"message": "Score submitted successfully"}
+
+# New ranking endpoints
+@router.get("/rankings/all-scores")
+async def get_all_scores_ranked(
+    gameMode: Optional[GameMode] = None,
+    group_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all individual scores ranked by score descending"""
+    from sqlalchemy import func
+    from sqlalchemy.orm import selectinload
+    
+    # Base query
+    query = select(
+        DBLeaderboardEntry.id,
+        DBLeaderboardEntry.username,
+        DBLeaderboardEntry.score,
+        DBLeaderboardEntry.game_mode,
+        DBLeaderboardEntry.timestamp,
+        func.rank().over(
+            partition_by=DBLeaderboardEntry.game_mode if gameMode is None else None,
+            order_by=DBLeaderboardEntry.score.desc()
+        ).label('rank')
+    ).order_by(DBLeaderboardEntry.score.desc())
+    
+    if gameMode:
+        query = query.where(DBLeaderboardEntry.game_mode == gameMode)
+    
+    # Group filtering
+    if group_id and group_id != "all":
+        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        query = query.where(DBLeaderboardEntry.username.in_(subquery))
+    
+    result = await db.execute(query)
+    entries = result.all()
+    
+    # Fetch user groups
+    usernames = list({e.username for e in entries})
+    users_map: Dict[str, List[Dict[str, str]]] = {}
+    
+    if usernames:
+        user_query = select(DBUser).where(DBUser.username.in_(usernames)).options(selectinload(DBUser.groups))
+        u_res = await db.execute(user_query)
+        users = u_res.scalars().all()
+        for u in users:
+            users_map[u.username] = [{"id": g.id, "name": g.name} for g in u.groups]
+    
+    return [
+        {
+            "id": e.id,
+            "username": e.username,
+            "score": e.score,
+            "game_mode": e.game_mode,
+            "timestamp": e.timestamp,
+            "rank": e.rank,
+            "groups": users_map.get(e.username, [])
+        }
+        for e in entries
+    ]
+
+@router.get("/rankings/best-per-user")
+async def get_best_per_user_per_mode(
+    gameMode: Optional[GameMode] = None,
+    group_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get best score per user per game mode with rankings"""
+    from sqlalchemy import func
+    from sqlalchemy.orm import selectinload
+    
+    # Subquery to get best scores
+    best_scores_subq = (
+        select(
+            DBLeaderboardEntry.username,
+            DBLeaderboardEntry.game_mode,
+            func.max(DBLeaderboardEntry.score).label('best_score'),
+            func.count().label('games_played')
+        )
+        .group_by(DBLeaderboardEntry.username, DBLeaderboardEntry.game_mode)
+    )
+    
+    if gameMode:
+        best_scores_subq = best_scores_subq.where(DBLeaderboardEntry.game_mode == gameMode)
+    
+    # Group filtering
+    if group_id and group_id != "all":
+        user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        best_scores_subq = best_scores_subq.where(DBLeaderboardEntry.username.in_(user_subquery))
+    
+    best_scores_subq = best_scores_subq.subquery()
+    
+    # Main query with ranking
+    query = select(
+        best_scores_subq.c.username,
+        best_scores_subq.c.game_mode,
+        best_scores_subq.c.best_score,
+        best_scores_subq.c.games_played,
+        func.rank().over(
+            partition_by=best_scores_subq.c.game_mode,
+            order_by=best_scores_subq.c.best_score.desc()
+        ).label('rank')
+    ).order_by(best_scores_subq.c.game_mode, best_scores_subq.c.best_score.desc())
+    
+    result = await db.execute(query)
+    entries = result.all()
+    
+    # Fetch user groups
+    usernames = list({e.username for e in entries})
+    users_map: Dict[str, List[Dict[str, str]]] = {}
+    
+    if usernames:
+        user_query = select(DBUser).where(DBUser.username.in_(usernames)).options(selectinload(DBUser.groups))
+        u_res = await db.execute(user_query)
+        users = u_res.scalars().all()
+        for u in users:
+            users_map[u.username] = [{"id": g.id, "name": g.name} for g in u.groups]
+    
+    return [
+        {
+            "username": e.username,
+            "game_mode": e.game_mode,
+            "best_score": e.best_score,
+            "games_played": e.games_played,
+            "rank": e.rank,
+            "groups": users_map.get(e.username, [])
+        }
+        for e in entries
+    ]
+
+@router.get("/rankings/top-n")
+async def get_top_n_per_mode(
+    limit: int = 10,
+    group_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get top N players for each game mode"""
+    from sqlalchemy import func
+    from sqlalchemy.orm import selectinload
+    
+    # Get best scores per user per mode
+    best_scores_subq = (
+        select(
+            DBLeaderboardEntry.username,
+            DBLeaderboardEntry.game_mode,
+            func.max(DBLeaderboardEntry.score).label('best_score')
+        )
+        .group_by(DBLeaderboardEntry.username, DBLeaderboardEntry.game_mode)
+    )
+    
+    # Group filtering
+    if group_id and group_id != "all":
+        user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        best_scores_subq = best_scores_subq.where(DBLeaderboardEntry.username.in_(user_subquery))
+    
+    best_scores_subq = best_scores_subq.subquery()
+    
+    # Query with ranking and limit per partition
+    query = select(
+        best_scores_subq.c.username,
+        best_scores_subq.c.game_mode,
+        best_scores_subq.c.best_score,
+        func.rank().over(
+            partition_by=best_scores_subq.c.game_mode,
+            order_by=best_scores_subq.c.best_score.desc()
+        ).label('rank')
+    ).order_by(best_scores_subq.c.game_mode, best_scores_subq.c.best_score.desc())
+    
+    result = await db.execute(query)
+    all_entries = result.all()
+    
+    # Filter to top N per mode
+    entries_by_mode: Dict[str, List] = {}
+    for e in all_entries:
+        if e.rank <= limit:
+            if e.game_mode not in entries_by_mode:
+                entries_by_mode[e.game_mode] = []
+            entries_by_mode[e.game_mode].append(e)
+    
+    # Fetch user groups
+    usernames = list({e.username for e in all_entries if e.rank <= limit})
+    users_map: Dict[str, List[Dict[str, str]]] = {}
+    
+    if usernames:
+        user_query = select(DBUser).where(DBUser.username.in_(usernames)).options(selectinload(DBUser.groups))
+        u_res = await db.execute(user_query)
+        users = u_res.scalars().all()
+        for u in users:
+            users_map[u.username] = [{"id": g.id, "name": g.name} for g in u.groups]
+    
+    # Format response
+    result_dict = {}
+    for mode, entries in entries_by_mode.items():
+        result_dict[mode] = [
+            {
+                "username": e.username,
+                "best_score": e.best_score,
+                "rank": e.rank,
+                "groups": users_map.get(e.username, [])
+            }
+            for e in entries
+        ]
+    
+    return result_dict
+
+@router.get("/rankings/overall")
+async def get_overall_rankings(
+    group_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get cross-game mode overall rankings based on average rank"""
+    from sqlalchemy import func
+    from sqlalchemy.orm import selectinload
+    
+    # Get best scores per user per mode with ranks
+    best_scores_subq = (
+        select(
+            DBLeaderboardEntry.username,
+            DBLeaderboardEntry.game_mode,
+            func.max(DBLeaderboardEntry.score).label('best_score')
+        )
+        .group_by(DBLeaderboardEntry.username, DBLeaderboardEntry.game_mode)
+    )
+    
+    # Group filtering
+    if group_id and group_id != "all":
+        user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        best_scores_subq = best_scores_subq.where(DBLeaderboardEntry.username.in_(user_subquery))
+    
+    best_scores_subq = best_scores_subq.subquery()
+    
+    # Add ranks per game mode
+    ranked_subq = select(
+        best_scores_subq.c.username,
+        best_scores_subq.c.game_mode,
+        best_scores_subq.c.best_score,
+        func.rank().over(
+            partition_by=best_scores_subq.c.game_mode,
+            order_by=best_scores_subq.c.best_score.desc()
+        ).label('game_rank')
+    ).subquery()
+    
+    # Aggregate by user
+    query = select(
+        ranked_subq.c.username,
+        func.count(func.distinct(ranked_subq.c.game_mode)).label('modes_played'),
+        func.sum(ranked_subq.c.best_score).label('total_best_scores'),
+        func.avg(ranked_subq.c.game_rank).label('avg_rank')
+    ).group_by(ranked_subq.c.username).order_by(func.avg(ranked_subq.c.game_rank))
+    
+    result = await db.execute(query)
+    entries = result.all()
+    
+    # Fetch user groups
+    usernames = list({e.username for e in entries})
+    users_map: Dict[str, List[Dict[str, str]]] = {}
+    
+    if usernames:
+        user_query = select(DBUser).where(DBUser.username.in_(usernames)).options(selectinload(DBUser.groups))
+        u_res = await db.execute(user_query)
+        users = u_res.scalars().all()
+        for u in users:
+            users_map[u.username] = [{"id": g.id, "name": g.name} for g in u.groups]
+    
+    return [
+        {
+            "username": e.username,
+            "modes_played": e.modes_played,
+            "total_best_scores": e.total_best_scores,
+            "avg_rank": round(float(e.avg_rank), 2),
+            "overall_rank": idx + 1,
+            "groups": users_map.get(e.username, [])
+        }
+        for idx, e in enumerate(entries)
+    ]
