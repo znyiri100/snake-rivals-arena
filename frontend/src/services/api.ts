@@ -154,11 +154,14 @@ class ApiService {
     }
 
     async submitScore(score: number, gameMode: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris'): Promise<void> {
-        await fetch(`${API_URL}/leaderboard`, {
+        const response = await fetch(`${API_URL}/leaderboard`, {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({ score, gameMode }),
         });
+        if (!response.ok) {
+            throw new Error('Failed to submit score');
+        }
     }
 
     // Active game sessions

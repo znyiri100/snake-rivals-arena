@@ -18,7 +18,7 @@ async def migrate():
                 SELECT 1 FROM pg_type WHERE typname = 'gamemode'
             );
         """))
-        enum_exists = (await result.fetchone())[0]
+        enum_exists = result.fetchone()[0]
         
         if not enum_exists:
             print("GameMode enum doesn't exist yet. It will be created automatically.")
@@ -30,7 +30,7 @@ async def migrate():
             WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'gamemode')
             ORDER BY enumsortorder;
         """))
-        current_values = [row[0] for row in await result.fetchall()]
+        current_values = [row[0] for row in result.fetchall()]
         print(f"Current GameMode values: {current_values}")
         
         # Add space_invaders if it doesn't exist
@@ -59,7 +59,7 @@ async def migrate():
             WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'gamemode')
             ORDER BY enumsortorder;
         """))
-        final_values = [row[0] for row in await result.fetchall()]
+        final_values = [row[0] for row in result.fetchall()]
         print(f"\nFinal GameMode values: {final_values}")
         print("\n✅ Migration completed successfully!")
 

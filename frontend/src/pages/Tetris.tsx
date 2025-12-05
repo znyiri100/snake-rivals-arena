@@ -110,7 +110,9 @@ const Tetris = () => {
                         playGameOver();
                         toast.error('Game Over!');
                         if (user) {
-                            api.submitScore(newState.score, 'tetris');
+                            api.submitScore(newState.score, 'tetris')
+                                .then(() => toast.success('Score submitted!'))
+                                .catch(() => toast.error('Failed to submit score'));
                         }
                     }
 
