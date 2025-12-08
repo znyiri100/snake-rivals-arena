@@ -102,6 +102,7 @@ async def submit_score(submission: ScoreSubmission, current_user: DBUser = Depen
 async def get_all_scores_ranked(
     gameMode: Optional[GameMode] = None,
     group_id: Optional[str] = None,
+    sort_by: str = "rank",  # "rank" (default) or "date"
     db: AsyncSession = Depends(get_db)
 ):
     """Get all individual scores ranked by score descending"""
@@ -119,7 +120,14 @@ async def get_all_scores_ranked(
             partition_by=DBLeaderboardEntry.game_mode if gameMode is None else None,
             order_by=DBLeaderboardEntry.score.desc()
         ).label('rank')
-    ).order_by(DBLeaderboardEntry.score.desc())
+    )
+    
+    # Sorting logic
+    if sort_by == "date":
+        query = query.order_by(DBLeaderboardEntry.timestamp.desc())
+    else:
+        # Default to rank/score
+        query = query.order_by(DBLeaderboardEntry.score.desc())
     
     if gameMode:
         query = query.where(DBLeaderboardEntry.game_mode == gameMode)
@@ -337,19 +345,49 @@ async def get_overall_rankings(
         ).label('game_rank')
     ).subquery()
     
-    # Aggregate by user
-    query = select(
-        ranked_subq.c.username,
-        func.count(func.distinct(ranked_subq.c.game_mode)).label('modes_played'),
-        func.sum(ranked_subq.c.best_score).label('total_best_scores'),
-        func.avg(ranked_subq.c.game_rank).label('avg_rank')
-    ).group_by(ranked_subq.c.username).order_by(func.avg(ranked_subq.c.game_rank))
+    # Aggregate by user in Python to include mode ranks
+    query = select(ranked_subq)
     
     result = await db.execute(query)
-    entries = result.all()
+    raw_entries = result.all()
+    
+    # Process in Python
+    user_stats = {}
+    
+    for row in raw_entries:
+        uname = row.username
+        if uname not in user_stats:
+            user_stats[uname] = {
+                "username": uname,
+                "modes_played": 0,
+                "total_best_scores": 0,
+                "ranks": [],
+                "mode_ranks": {}
+            }
+        
+        stat = user_stats[uname]
+        stat["modes_played"] += 1
+        stat["total_best_scores"] += row.best_score
+        stat["ranks"].append(row.game_rank)
+        stat["mode_ranks"][row.game_mode] = row.game_rank
+        
+    # Calculate averages and format
+    final_list = []
+    for uname, data in user_stats.items():
+        avg = sum(data["ranks"]) / len(data["ranks"])
+        final_list.append({
+            "username": uname,
+            "modes_played": data["modes_played"],
+            "total_best_scores": data["total_best_scores"],
+            "avg_rank": round(avg, 2),
+            "mode_ranks": data["mode_ranks"]
+        })
+        
+    # Sort by avg_rank ascending (lower is better)
+    final_list.sort(key=lambda x: x["avg_rank"])
     
     # Fetch user groups
-    usernames = list({e.username for e in entries})
+    usernames = list(user_stats.keys())
     users_map: Dict[str, List[Dict[str, str]]] = {}
     
     if usernames:
@@ -361,14 +399,15 @@ async def get_overall_rankings(
     
     return [
         {
-            "username": e.username,
-            "modes_played": e.modes_played,
-            "total_best_scores": e.total_best_scores,
-            "avg_rank": round(float(e.avg_rank), 2),
+            "username": e["username"],
+            "modes_played": e["modes_played"],
+            "total_best_scores": e["total_best_scores"],
+            "avg_rank": e["avg_rank"],
             "overall_rank": idx + 1,
-            "groups": users_map.get(e.username, [])
+            "mode_ranks": e["mode_ranks"],
+            "groups": users_map.get(e["username"], [])
         }
-        for idx, e in enumerate(entries)
+        for idx, e in enumerate(final_list)
     ]
 
 @router.get("/stats/summary")

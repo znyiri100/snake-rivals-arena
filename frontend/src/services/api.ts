@@ -46,6 +46,7 @@ export interface OverallRanking {
     total_best_scores: number;
     avg_rank: number;
     overall_rank: number;
+    mode_ranks: Record<string, number>;
     groups?: Group[];
 }
 
@@ -211,8 +212,8 @@ class ApiService {
     }
 
     // Ranking endpoints
-    async getAllScoresRanked(gameMode?: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris', groupId?: string): Promise<RankedScore[]> {
-        let url = `${API_URL}/leaderboard/rankings/all-scores?`;
+    async getAllScoresRanked(gameMode?: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris', groupId?: string, sortBy: 'rank' | 'date' = 'rank'): Promise<RankedScore[]> {
+        let url = `${API_URL}/leaderboard/rankings/all-scores?sort_by=${sortBy}&`;
         if (gameMode) {
             url += `gameMode=${gameMode}&`;
         }

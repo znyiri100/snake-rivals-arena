@@ -254,3 +254,70 @@ Project Link: [https://github.com/YOUR_USERNAME/snake-rivals-arena](https://gith
 ---
 
 Made with ❤️ and 🐍
+
+## 🔄 Applying Changes & Troubleshooting
+
+### To make code changes effective:
+
+```bash
+docker compose up --build -d
+```
+This command rebuilds the frontend assets (packaging new logic) and restarts the containers. The changes should now be effective in your browser. You may need to refresh the page.
+
+### If port forwarding fails:
+
+```bash
+curl -v http://0.0.0.0:8000
+```
+This command reestablishes port forwarding if it has been interrupted.
+
+### ⚡ Faster Development (Recommended)
+
+To avoid rebuilding Docker for every frontend change, run the frontend locally:
+
+1. Ensure the backend is running in Docker (on port 8000).
+2. Open a new terminal and run:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The app will start at `http://localhost:8080`. Changes will be reflected instantly (HMR).
+API requests will be proxied to the backend automatically.
+
+### 🐍 Local Backend Development
+
+If you also want to run the backend locally (e.g. for debugging Python code):
+
+1. **Database**: You need a running PostgreSQL database.
+   - Option A: Use the Docker database (easiest):
+     ```bash
+     docker compose up db -d
+     ```
+     This makes Postgres available at `localhost:5432`.
+
+   - Option B: Use the remote database:
+     Set `DATABASE_URL` to your remote connection string.
+
+2. **Run Backend**:
+   Open a new terminal:
+   ```bash
+   cd backend
+   # Install dependencies
+   uv sync
+   # Run the server (auto-reloads on change)
+   # If using local docker DB, separate credentials might be needed or default 'user/password' works if defined in docker-compose
+   <!-- DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/snake_rivals"  -->
+   DATABASE_URL="postgresql+asyncpg://snake_user:pMdiYRvQYAPKaHx4jSt0Oi5WDvQLsEj0@dpg-d4l5fj3uibrs73fris3g-a.oregon-postgres.render.com/snake_rivals" uv run uvicorn app.main:app --reload --port 8000
+   ```
+   
+   *Note: If using remote DB, replace the DATABASE_URL with the remote one.*
+
+### Start with Remote Database (Docker)
+
+To start the dokerized application:
+```bash
+DATABASE_URL="postgresql+asyncpg://snake_user:pMdiYRvQYAPKaHx4jSt0Oi5WDvQLsEj0@dpg-d4l5fj3uibrs73fris3g-a.oregon-postgres.render.com/snake_rivals" docker compose up -d --build app
+```

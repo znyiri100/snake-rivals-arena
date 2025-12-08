@@ -26,8 +26,9 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     const [reportType, setReportType] = useState<ReportType>('dashboard');
     const [gameMode, setGameMode] = useState<GameModeFilter>('all');
     const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
-    const [userGroups, setUserGroups] = useState<Group[]>([]);
+    const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
     const [topNLimit, setTopNLimit] = useState<number>(10);
+    const [sortBy, setSortBy] = useState<'rank' | 'date'>('rank');
     const [isLoading, setIsLoading] = useState(true);
 
     // Data states
@@ -36,20 +37,14 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     const [topNData, setTopNData] = useState<Record<string, UserGameModeRank[]>>({});
     const [overallRankings, setOverallRankings] = useState<OverallRanking[]>([]);
 
-    // Set user groups
+    // Load available groups
     useEffect(() => {
-        const currentUser = user || api.getCurrentUser();
-        if (currentUser?.groups && currentUser.groups.length > 0) {
-            setUserGroups(currentUser.groups);
-            const isCurrentSelectionValid = currentUser.groups.some(g => g.id === selectedGroupId);
-            if (selectedGroupId === 'all' || !isCurrentSelectionValid) {
-                setSelectedGroupId(currentUser.groups[0].id);
-            }
-        } else {
-            setUserGroups([]);
-            setSelectedGroupId('all');
-        }
-    }, [user]);
+        const fetchGroups = async () => {
+            const groups = await api.getGroups();
+            setAvailableGroups(groups);
+        };
+        fetchGroups();
+    }, []);
 
     // Load data based on report type
     useEffect(() => {
@@ -61,7 +56,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
 
                 switch (reportType) {
                     case 'all-scores':
-                        const scores = await api.getAllScoresRanked(mode, groupId);
+                        const scores = await api.getAllScoresRanked(mode, groupId, sortBy);
                         setAllScores(scores);
                         break;
                     case 'best-per-user':
@@ -90,7 +85,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
         };
 
         loadData();
-    }, [reportType, gameMode, selectedGroupId, topNLimit]);
+    }, [reportType, gameMode, selectedGroupId, topNLimit, sortBy]);
 
     const getRankIcon = (rank: number) => {
         if (rank === 1) return <Trophy className="w-5 h-5 text-neon-yellow" />;
@@ -227,6 +222,15 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                     Avg Rank: {entry.avg_rank}
                                 </span>
                             </div>
+                            {/* Mode Ranks */}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {Object.entries(entry.mode_ranks || {}).map(([mode, rank]) => (
+                                    <Badge key={mode} variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-primary/20 bg-primary/5">
+                                        <span className="opacity-70 mr-1">{GAME_MODE_LABELS[mode]?.split(' ')[0] || mode}</span>
+                                        <span className="font-bold text-primary">#{rank}</span>
+                                    </Badge>
+                                ))}
+                            </div>
                         </div>
                     </div>
                     <div className="text-right">
@@ -260,7 +264,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">All Groups</SelectItem>
-                            {userGroups.map(group => (
+                            {availableGroups.map(group => (
                                 <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                             ))}
                         </SelectContent>
@@ -283,6 +287,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                     )}
 
                     {/* Top N selector */}
+
                     {reportType === 'top-n' && (
                         <Select value={topNLimit.toString()} onValueChange={(v) => setTopNLimit(parseInt(v))}>
                             <SelectTrigger className="w-[100px] h-9 text-xs bg-muted/50 border-border">
@@ -294,6 +299,19 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                 <SelectItem value="20">Top 20</SelectItem>
                                 <SelectItem value="50">Top 50</SelectItem>
                                 <SelectItem value="999">All</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    )}
+
+                    {/* Sort selector for All Scores */}
+                    {reportType === 'all-scores' && (
+                        <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'rank' | 'date')}>
+                            <SelectTrigger className="w-[120px] h-9 text-xs bg-muted/50 border-border">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="rank">Sort by Rank</SelectItem>
+                                <SelectItem value="date">Sort by Date</SelectItem>
                             </SelectContent>
                         </Select>
                     )}
