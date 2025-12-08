@@ -281,6 +281,47 @@ class ApiService {
     reset(): void {
         this.logout();
     }
+
+    // Dashboard Stats
+    async getStatsSummary(groupId?: string): Promise<{ total_games: number; total_players: number; recent_games: number; popular_mode: string }> {
+        let url = `${API_URL}/leaderboard/stats/summary`;
+        if (groupId) url += `?group_id=${groupId}`;
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return { total_games: 0, total_players: 0, recent_games: 0, popular_mode: 'None' };
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch stats summary", e);
+            return { total_games: 0, total_players: 0, recent_games: 0, popular_mode: 'None' };
+        }
+    }
+
+    async getScoreDistribution(gameMode: string, groupId?: string): Promise<{ range: string; count: number }[]> {
+        let url = `${API_URL}/leaderboard/stats/distribution?gameMode=${gameMode}`;
+        if (groupId) url += `&group_id=${groupId}`;
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch score distribution", e);
+            return [];
+        }
+    }
+
+    async getActivityTrends(days: number = 30, groupId?: string): Promise<{ date: string; games: number }[]> {
+        let url = `${API_URL}/leaderboard/stats/activity?days=${days}`;
+        if (groupId) url += `&group_id=${groupId}`;
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch activity trends", e);
+            return [];
+        }
+    }
 }
+
 
 export const api = new ApiService();

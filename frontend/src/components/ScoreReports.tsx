@@ -6,12 +6,13 @@ import { api, type User, type Group, type RankedScore, type UserGameModeRank, ty
 import { Trophy, Medal, Users, TrendingUp } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScoreDashboard } from './ScoreDashboard';
 
 interface ScoreReportsProps {
     user?: User | null;
 }
 
-type ReportType = 'overall' | 'all-scores' | 'best-per-user' | 'top-n';
+type ReportType = 'dashboard' | 'overall' | 'all-scores' | 'best-per-user' | 'top-n';
 type GameModeFilter = 'all' | 'snake' | 'minesweeper' | 'space_invaders' | 'tetris';
 
 const GAME_MODE_LABELS: Record<string, string> = {
@@ -22,7 +23,7 @@ const GAME_MODE_LABELS: Record<string, string> = {
 };
 
 export const ScoreReports = ({ user }: ScoreReportsProps) => {
-    const [reportType, setReportType] = useState<ReportType>('overall');
+    const [reportType, setReportType] = useState<ReportType>('dashboard');
     const [gameMode, setGameMode] = useState<GameModeFilter>('all');
     const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
     const [userGroups, setUserGroups] = useState<Group[]>([]);
@@ -79,7 +80,12 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
             } catch (error) {
                 console.error('Failed to load report data:', error);
             } finally {
-                setIsLoading(false);
+                if (reportType !== 'dashboard') {
+                    setIsLoading(false);
+                } else {
+                    // Dashboard handles its own loading
+                    setIsLoading(false);
+                }
             }
         };
 
@@ -297,10 +303,17 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
             {/* Report type selector */}
             <div className="flex flex-wrap gap-2 mb-6">
                 <Button
+                    variant={reportType === 'dashboard' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setReportType('dashboard')}
+                    className="neon-border"
+                >
+                    Dashboard
+                </Button>
+                <Button
                     variant={reportType === 'overall' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setReportType('overall')}
-                    className="neon-border"
                 >
                     Overall Rankings
                 </Button>
@@ -336,6 +349,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                 </div>
             ) : (
                 <>
+                    {reportType === 'dashboard' && <ScoreDashboard groupId={selectedGroupId} />}
                     {reportType === 'all-scores' && renderAllScores()}
                     {reportType === 'best-per-user' && renderBestPerUser()}
                     {reportType === 'top-n' && renderTopN()}

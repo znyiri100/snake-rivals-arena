@@ -370,3 +370,158 @@ async def get_overall_rankings(
         }
         for idx, e in enumerate(entries)
     ]
+
+@router.get("/stats/summary")
+async def get_stats_summary(
+    group_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get summary statistics for the dashboard"""
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    # Base query for counts
+    query_total = select(func.count(DBLeaderboardEntry.id))
+    query_users = select(func.count(func.distinct(DBLeaderboardEntry.username)))
+    
+    # Recent activity (last 24h)
+    yesterday = datetime.now() - timedelta(days=1)
+    query_recent = select(func.count(DBLeaderboardEntry.id)).where(DBLeaderboardEntry.timestamp >= yesterday)
+    
+    # Most popular mode
+    query_mode = (
+        select(DBLeaderboardEntry.game_mode, func.count(DBLeaderboardEntry.id).label('count'))
+        .group_by(DBLeaderboardEntry.game_mode)
+        .order_by(func.count(DBLeaderboardEntry.id).desc())
+        .limit(1)
+    )
+    
+    # Apply group filtering
+    if group_id and group_id != "all":
+        user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        # We need to apply this filter to all queries
+        query_total = query_total.where(DBLeaderboardEntry.username.in_(user_subquery))
+        query_users = query_users.where(DBLeaderboardEntry.username.in_(user_subquery))
+        query_recent = query_recent.where(DBLeaderboardEntry.username.in_(user_subquery))
+        query_mode = query_mode.where(DBLeaderboardEntry.username.in_(user_subquery))
+
+    # Execute
+    total_games = (await db.execute(query_total)).scalar() or 0
+    total_players = (await db.execute(query_users)).scalar() or 0
+    recent_games = (await db.execute(query_recent)).scalar() or 0
+    
+    mode_res = (await db.execute(query_mode)).first()
+    popular_mode = mode_res[0] if mode_res else "None"
+    
+    return {
+        "total_games": total_games,
+        "total_players": total_players,
+        "recent_games": recent_games,
+        "popular_mode": popular_mode
+    }
+
+@router.get("/stats/distribution")
+async def get_score_distribution(
+    gameMode: GameMode,
+    group_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get score distribution buckets for a specific game mode"""
+    from sqlalchemy import func, case
+    
+    # We'll create dynamic buckets based on max score or fixed ranges?
+    # For simplicity, let's just get all scores and bucket them in python for now, 
+    # or use a simple width_bucket if we were on postgres exclusive but let's be adaptable.
+    # Actually, fetching all scores might be heavy. Let's start with a decent approximation:
+    # Get min/max/avg and then some histogram data if possible.
+    # Postgres has `width_bucket`.
+    
+    query = select(DBLeaderboardEntry.score).where(DBLeaderboardEntry.game_mode == gameMode)
+    
+    if group_id and group_id != "all":
+        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        query = query.where(DBLeaderboardEntry.username.in_(subquery))
+        
+    result = await db.execute(query)
+    scores = result.scalars().all()
+    
+    if not scores:
+        return []
+        
+    scores = [s for s in scores]
+    scores.sort()
+    
+    # Create 10 buckets
+    if not scores:
+        return []
+        
+    min_s = scores[0]
+    max_s = scores[-1]
+    
+    if min_s == max_s:
+        return [{"range": f"{min_s}", "count": len(scores)}]
+        
+    step = (max_s - min_s) / 10
+    if step == 0: step = 1
+    
+    buckets = []
+    # Initialize buckets
+    current = min_s
+    for _ in range(10):
+        end = current + step
+        # Label format: "0-100", "100-200" etc.
+        range_label = f"{int(current)}-{int(end)}"
+        count = len([s for s in scores if current <= s < end])
+        # Last bucket includes the max incase of float precision issues
+        if _ == 9:
+            count = len([s for s in scores if current <= s])
+            
+        buckets.append({"range": range_label, "count": count})
+        current = end
+        
+    return buckets
+
+@router.get("/stats/activity")
+async def get_activity_trends(
+    days: int = 30,
+    group_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get daily game activity for the last N days"""
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    start_date = datetime.now() - timedelta(days=days)
+    
+    # Truncate to day
+    date_col = func.date_trunc('day', DBLeaderboardEntry.timestamp)
+    
+    query = (
+        select(date_col, func.count(DBLeaderboardEntry.id))
+        .where(DBLeaderboardEntry.timestamp >= start_date)
+        .group_by(date_col)
+        .order_by(date_col)
+    )
+    
+    if group_id and group_id != "all":
+        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        query = query.where(DBLeaderboardEntry.username.in_(subquery))
+        
+    result = await db.execute(query)
+    data = result.all()
+    
+    # Fill in missing days
+    activity = {}
+    for date, count in data:
+        if date:
+            activity[date.strftime('%Y-%m-%d')] = count
+            
+    final_data = []
+    for i in range(days):
+        d = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
+        final_data.append({
+            "date": d,
+            "games": activity.get(d, 0)
+        })
+        
+    return final_data
