@@ -11,7 +11,8 @@ import {
     Tooltip,
     ResponsiveContainer,
     AreaChart,
-    Area
+    Area,
+    Legend
 } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Activity, Users, Gamepad2, Trophy, Info } from 'lucide-react';
@@ -31,7 +32,10 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
     const [summary, setSummary] = useState({ total_games: 0, total_players: 0, recent_games: 0, popular_mode: 'None' });
     const [distribution, setDistribution] = useState<{ range: string; count: number }[]>([]);
     const [activity, setActivity] = useState<{ date: string; games: number }[]>([]);
+    const [activityByMode, setActivityByMode] = useState<any[]>([]);
+    const [activityByUser, setActivityByUser] = useState<any[]>([]);
     const [selectedMode, setSelectedMode] = useState<string>('snake');
+    const [chartType, setChartType] = useState<'area' | 'bar'>('area');
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -39,13 +43,17 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
             setIsLoading(true);
             try {
                 // Load parallel
-                const [sumRes, actRes] = await Promise.all([
+                const [sumRes, actRes, modeRes, userRes] = await Promise.all([
                     api.getStatsSummary(groupId === 'all' ? undefined : groupId),
-                    api.getActivityTrends(30, groupId === 'all' ? undefined : groupId)
+                    api.getActivityTrends(30, groupId === 'all' ? undefined : groupId),
+                    api.getActivityByMode(30, groupId === 'all' ? undefined : groupId),
+                    api.getActivityByUser(30, groupId === 'all' ? undefined : groupId)
                 ]);
 
                 setSummary(sumRes);
                 setActivity(actRes);
+                setActivityByMode(modeRes);
+                setActivityByUser(userRes);
 
                 // Load distribution separately as it depends on mode
                 await loadDistribution(selectedMode);
@@ -123,6 +131,18 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                         </div>
                     </div>
                 </Card>
+            </div>
+
+            <div className="flex justify-end mb-4">
+                <Select value={chartType} onValueChange={(v) => setChartType(v as 'area' | 'bar')}>
+                    <SelectTrigger className="w-[140px] h-9 text-xs bg-muted/50 border-border">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="area">Area View</SelectItem>
+                        <SelectItem value="bar">Bar View</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
@@ -212,6 +232,149 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                 </BarChart>
                             </ResponsiveContainer>
                         )}
+                    </div>
+                </Card>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+                {/* Activity by Game Mode */}
+                <Card className="p-6 bg-card/80 border-border">
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-foreground">
+                        <Gamepad2 className="w-5 h-5 text-primary" />
+                        Activity by Game Mode
+                    </h3>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            {chartType === 'area' ? (
+                                <AreaChart data={activityByMode}>
+                                    <defs>
+                                        <linearGradient id="colorSnake" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorMines" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorSpace" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorTetris" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                                    <XAxis
+                                        dataKey="date"
+                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        fontSize={12}
+                                    />
+                                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                    />
+                                    <Legend />
+                                    <Area type="monotone" dataKey="snake" name="Snake" stackId="1" stroke="#22c55e" fill="url(#colorSnake)" />
+                                    <Area type="monotone" dataKey="minesweeper" name="Minesweeper" stackId="1" stroke="#ef4444" fill="url(#colorMines)" />
+                                    <Area type="monotone" dataKey="space_invaders" name="Space Invaders" stackId="1" stroke="#8b5cf6" fill="url(#colorSpace)" />
+                                    <Area type="monotone" dataKey="tetris" name="Tetris" stackId="1" stroke="#3b82f6" fill="url(#colorTetris)" />
+                                </AreaChart>
+                            ) : (
+                                <BarChart data={activityByMode}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                                    <XAxis
+                                        dataKey="date"
+                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        fontSize={12}
+                                    />
+                                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                    />
+                                    <Legend />
+                                    <Bar dataKey="snake" name="Snake" stackId="1" fill="#22c55e" />
+                                    <Bar dataKey="minesweeper" name="Minesweeper" stackId="1" fill="#ef4444" />
+                                    <Bar dataKey="space_invaders" name="Space Invaders" stackId="1" fill="#8b5cf6" />
+                                    <Bar dataKey="tetris" name="Tetris" stackId="1" fill="#3b82f6" />
+                                </BarChart>
+                            )}
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                {/* Activity by User */}
+                <Card className="p-6 bg-card/80 border-border">
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-foreground">
+                        <Users className="w-5 h-5 text-primary" />
+                        Activity by User (Top 10)
+                    </h3>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            {chartType === 'area' ? (
+                                <AreaChart data={activityByUser}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                                    <XAxis
+                                        dataKey="date"
+                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        fontSize={12}
+                                    />
+                                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                    />
+                                    <Legend />
+                                    {activityByUser.length > 0 && Object.keys(activityByUser[0] || {})
+                                        .filter(k => k !== 'date')
+                                        .map((key, index) => (
+                                            <Area
+                                                key={key}
+                                                type="monotone"
+                                                dataKey={key}
+                                                stackId="1"
+                                                stroke={`hsl(${index * 45}, 70%, 50%)`}
+                                                fill={`hsl(${index * 45}, 70%, 50%)`}
+                                                fillOpacity={0.6}
+                                            />
+                                        ))
+                                    }
+                                </AreaChart>
+                            ) : (
+                                <BarChart data={activityByUser}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                                    <XAxis
+                                        dataKey="date"
+                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        fontSize={12}
+                                    />
+                                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                    />
+                                    <Legend />
+                                    {activityByUser.length > 0 && Object.keys(activityByUser[0] || {})
+                                        .filter(k => k !== 'date')
+                                        .map((key, index) => (
+                                            <Bar
+                                                key={key}
+                                                dataKey={key}
+                                                stackId="1"
+                                                fill={`hsl(${index * 45}, 70%, 50%)`}
+                                            />
+                                        ))
+                                    }
+                                </BarChart>
+                            )}
+                        </ResponsiveContainer>
                     </div>
                 </Card>
             </div>

@@ -564,3 +564,125 @@ async def get_activity_trends(
         })
         
     return final_data
+
+
+@router.get("/stats/activity/by-mode")
+async def get_activity_by_mode(
+    days: int = 30,
+    group_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get daily game activity broken down by game mode for the last N days"""
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    start_date = datetime.now() - timedelta(days=days)
+    date_col = func.date_trunc('day', DBLeaderboardEntry.timestamp)
+    
+    # Query: Date, GameMode, Count
+    query = (
+        select(
+            date_col.label('date'), 
+            DBLeaderboardEntry.game_mode, 
+            func.count(DBLeaderboardEntry.id).label('count')
+        )
+        .where(DBLeaderboardEntry.timestamp >= start_date)
+        .group_by(date_col, DBLeaderboardEntry.game_mode)
+        .order_by(date_col)
+    )
+    
+    if group_id and group_id != "all":
+        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        query = query.where(DBLeaderboardEntry.username.in_(subquery))
+        
+    result = await db.execute(query)
+    rows = result.all()
+    
+    # Process into [{date: 'YYYY-MM-DD', snake: 5, tetris: 2, ...}, ...]
+    data_map = {}
+    
+    # Initialize all dates with 0s
+    for i in range(days):
+        d = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
+        data_map[d] = {"date": d}
+        # We don't know all modes yet effectively, but we can fill them in as we see them or just rely on recharts handling missing keys (it does, usually treats as undefined/0 if handled)
+        # But to be safe let's pre-fill common modes if we want, or just let them be dynamic.
+        # Recharts works best if keys exist.
+        for mode in GameMode:
+            data_map[d][mode.value] = 0
+
+    for r in rows:
+        if r.date:
+            d_str = r.date.strftime('%Y-%m-%d')
+            if d_str in data_map:
+                data_map[d_str][r.game_mode] = r.count
+                
+    return sorted(list(data_map.values()), key=lambda x: x['date'])
+
+@router.get("/stats/activity/by-user")
+async def get_activity_by_user(
+    days: int = 30,
+    group_id: Optional[str] = None,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get daily game activity broken down by user for the last N days (Top N users)"""
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    start_date = datetime.now() - timedelta(days=days)
+    
+    # 1. Identify Top N active users in this period
+    count_query = (
+        select(DBLeaderboardEntry.username, func.count(DBLeaderboardEntry.id).label('total'))
+        .where(DBLeaderboardEntry.timestamp >= start_date)
+        .group_by(DBLeaderboardEntry.username)
+        .order_by(func.count(DBLeaderboardEntry.id).desc())
+        .limit(limit)
+    )
+    
+    if group_id and group_id != "all":
+        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
+        count_query = count_query.where(DBLeaderboardEntry.username.in_(subquery))
+        
+    top_users_res = await db.execute(count_query)
+    top_users = [row.username for row in top_users_res.all()]
+    
+    if not top_users:
+        return []
+
+    # 2. Get daily data for these users
+    date_col = func.date_trunc('day', DBLeaderboardEntry.timestamp)
+    
+    query = (
+        select(
+            date_col.label('date'), 
+            DBLeaderboardEntry.username, 
+            func.count(DBLeaderboardEntry.id).label('count')
+        )
+        .where(DBLeaderboardEntry.timestamp >= start_date)
+        .where(DBLeaderboardEntry.username.in_(top_users))
+        .group_by(date_col, DBLeaderboardEntry.username)
+        .order_by(date_col)
+    )
+    
+    result = await db.execute(query)
+    rows = result.all()
+    
+    # Process
+    data_map = {}
+    
+    # Initialize dates
+    for i in range(days):
+        d = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
+        data_map[d] = {"date": d}
+        for u in top_users:
+            data_map[d][u] = 0
+            
+    for r in rows:
+        if r.date:
+            d_str = r.date.strftime('%Y-%m-%d')
+            if d_str in data_map:
+                data_map[d_str][r.username] = r.count
+                
+    return sorted(list(data_map.values()), key=lambda x: x['date'])

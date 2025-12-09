@@ -322,6 +322,32 @@ class ApiService {
             return [];
         }
     }
+
+    async getActivityByMode(days: number = 30, groupId?: string): Promise<any[]> {
+        let url = `${API_URL}/leaderboard/stats/activity/by-mode?days=${days}`;
+        if (groupId) url += `&group_id=${groupId}`;
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch activity trends by mode", e);
+            return [];
+        }
+    }
+
+    async getActivityByUser(days: number = 30, groupId?: string, limit: number = 10): Promise<any[]> {
+        let url = `${API_URL}/leaderboard/stats/activity/by-user?days=${days}&limit=${limit}`;
+        if (groupId) url += `&group_id=${groupId}`;
+        try {
+            const response = await fetch(url, { headers: this.getHeaders() });
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (e) {
+            console.error("Failed to fetch activity trends by user", e);
+            return [];
+        }
+    }
 }
 
 
