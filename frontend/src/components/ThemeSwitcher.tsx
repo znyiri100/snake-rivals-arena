@@ -14,14 +14,14 @@ export function ThemeSwitcher() {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="w-[180px] justify-between px-3 border-primary/50 bg-black/50 backdrop-blur-sm">
+                <Button variant="outline" size="icon" className="w-auto md:w-[180px] justify-between px-3 border-primary/50 bg-black/50 backdrop-blur-sm">
                     <span className="flex items-center gap-2">
                         {theme === 'retro' && <Monitor className="h-4 w-4 text-neon-green" />}
                         {theme === 'cyberpunk' && <Zap className="h-4 w-4 text-neon-magenta" />}
                         {theme === 'nature' && <TreePine className="h-4 w-4 text-green-500" />}
                         {theme === 'minimalist' && <Moon className="h-4 w-4" />}
                         {theme === 'light' && <Sun className="h-4 w-4 text-yellow-500" />}
-                        <span className="capitalize">{theme} Theme</span>
+                        <span className="capitalize hidden md:inline">{theme} Theme</span>
                     </span>
                 </Button>
             </DropdownMenuTrigger>

@@ -157,7 +157,7 @@ const Tetris = () => {
     }, [isPlaying, gameState.isGameOver, gameState.isPaused, gameState.level, lastDropTime, user, playEat, playGameOver]);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4 flex flex-col items-center">
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4 pt-16 flex flex-col items-center">
             <div className="w-full max-w-4xl mb-6 flex justify-between items-center">
                 <Link to="/">
                     <Button variant="ghost" className="text-primary hover:text-primary/90">

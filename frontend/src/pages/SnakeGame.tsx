@@ -130,7 +130,7 @@ const SnakeGame = () => {
     }, [gameState?.isGameOver, user]);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4 flex flex-col items-center">
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4 pt-16 flex flex-col items-center">
             {/* Header */}
             <div className="w-full max-w-4xl mb-6 flex justify-between items-center">
                 <div className="flex items-center gap-4">
