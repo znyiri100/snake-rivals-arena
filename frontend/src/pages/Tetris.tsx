@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { TetrisBoard } from '@/components/TetrisBoard';
+import { TetrisControls } from '@/components/TetrisControls';
 import {
     createInitialState,
     movePiece,
@@ -52,32 +53,57 @@ const Tetris = () => {
     };
 
     // Handle keyboard input
+    const handleMoveLeft = useCallback(() => {
+        if (!isPlaying || gameState.isGameOver || gameState.isPaused) return;
+        setGameState(prev => movePiece(prev, 'left'));
+    }, [isPlaying, gameState.isGameOver, gameState.isPaused]);
+
+    const handleMoveRight = useCallback(() => {
+        if (!isPlaying || gameState.isGameOver || gameState.isPaused) return;
+        setGameState(prev => movePiece(prev, 'right'));
+    }, [isPlaying, gameState.isGameOver, gameState.isPaused]);
+
+    const handleSoftDrop = useCallback(() => {
+        if (!isPlaying || gameState.isGameOver || gameState.isPaused) return;
+        setGameState(prev => movePiece(prev, 'down'));
+    }, [isPlaying, gameState.isGameOver, gameState.isPaused]);
+
+    const handleRotate = useCallback(() => {
+        if (!isPlaying || gameState.isGameOver || gameState.isPaused) return;
+        setGameState(prev => rotatePieceInState(prev));
+        playClick();
+    }, [isPlaying, gameState.isGameOver, gameState.isPaused, playClick]);
+
+    const handleHardDrop = useCallback(() => {
+        if (!isPlaying || gameState.isGameOver || gameState.isPaused) return;
+        setGameState(prev => hardDrop(prev));
+        playEat();
+    }, [isPlaying, gameState.isGameOver, gameState.isPaused, playEat]);
+
+    // Handle keyboard input
     const handleKeyPress = useCallback((e: KeyboardEvent) => {
         if (gameState.isGameOver) return;
 
         switch (e.key) {
             case 'ArrowLeft':
                 e.preventDefault();
-                setGameState(prev => movePiece(prev, 'left'));
+                handleMoveLeft();
                 break;
             case 'ArrowRight':
                 e.preventDefault();
-                setGameState(prev => movePiece(prev, 'right'));
+                handleMoveRight();
                 break;
             case 'ArrowDown':
                 e.preventDefault();
-                setGameState(prev => movePiece(prev, 'down'));
+                handleSoftDrop();
                 break;
             case 'ArrowUp':
+                e.preventDefault();
+                handleRotate();
+                break;
             case ' ':
                 e.preventDefault();
-                if (e.key === ' ') {
-                    setGameState(prev => hardDrop(prev));
-                    playEat();
-                } else {
-                    setGameState(prev => rotatePieceInState(prev));
-                    playClick();
-                }
+                handleHardDrop();
                 break;
             case 'p':
             case 'P':
@@ -85,7 +111,7 @@ const Tetris = () => {
                 handlePause();
                 break;
         }
-    }, [gameState.isGameOver, playClick, playEat]);
+    }, [gameState.isGameOver, handleMoveLeft, handleMoveRight, handleSoftDrop, handleRotate, handleHardDrop]);
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyPress);
@@ -192,6 +218,17 @@ const Tetris = () => {
                 </div>
 
                 <TetrisBoard gameState={gameState} />
+
+                <TetrisControls
+                    onMoveLeft={handleMoveLeft}
+                    onMoveRight={handleMoveRight}
+                    onSoftDrop={handleSoftDrop}
+                    onRotate={handleRotate}
+                    onHardDrop={handleHardDrop}
+                    onPause={handlePause}
+                    onRestart={resetGame}
+                    isPaused={gameState.isPaused}
+                />
 
                 <div className="text-center text-sm text-muted-foreground">
                     <p>← → to move, ↑ to rotate, ↓ to soft drop, SPACE for hard drop, P to pause</p>

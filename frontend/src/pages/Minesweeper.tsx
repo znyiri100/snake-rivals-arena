@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { MinesweeperBoard } from '@/components/MinesweeperBoard';
+import { MinesweeperControls } from '@/components/MinesweeperControls';
 import {
     createBoard,
     revealCell,
@@ -26,10 +27,12 @@ const Minesweeper = () => {
         initUser();
     }, []);
 
+    const [isFlagMode, setIsFlagMode] = useState(false);
+
     const [gameState, setGameState] = useState<MinesweeperState>(() => {
         const rows = 10;
         const cols = 10;
-        const mineCount = 15;
+        const mineCount = 10;
         return {
             grid: createBoard(rows, cols, mineCount),
             rows,
@@ -55,8 +58,27 @@ const Minesweeper = () => {
         });
     };
 
+    const handleToggleFlag = (x: number, y: number) => {
+        if (gameState.isGameOver || gameState.grid[y][x].status === 'revealed') return;
+
+        playClick();
+        const { grid, minesLeftChange } = toggleFlag(gameState.grid, x, y);
+        setGameState(prev => ({
+            ...prev,
+            grid,
+            minesLeft: prev.minesLeft + minesLeftChange,
+        }));
+    };
+
     const handleCellClick = (x: number, y: number) => {
-        if (gameState.isGameOver || gameState.grid[y][x].status === 'flagged') return;
+        if (gameState.isGameOver) return;
+
+        if (isFlagMode) {
+            handleToggleFlag(x, y);
+            return;
+        }
+
+        if (gameState.grid[y][x].status === 'flagged') return;
 
         playClick();
         const { grid, isGameOver, isWon, scoreIncrease } = revealCell(gameState.grid, x, y);
@@ -88,15 +110,7 @@ const Minesweeper = () => {
 
     const handleCellRightClick = (e: React.MouseEvent, x: number, y: number) => {
         e.preventDefault();
-        if (gameState.isGameOver || gameState.grid[y][x].status === 'revealed') return;
-
-        playClick();
-        const { grid, minesLeftChange } = toggleFlag(gameState.grid, x, y);
-        setGameState({
-            ...gameState,
-            grid,
-            minesLeft: gameState.minesLeft + minesLeftChange,
-        });
+        handleToggleFlag(x, y);
     };
 
     return (
@@ -122,7 +136,7 @@ const Minesweeper = () => {
                     <div className="text-xl font-bold text-primary neon-text">
                         Score: {gameState.score}
                     </div>
-                    <Button onClick={startNewGame} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+                    <Button onClick={startNewGame} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground hidden md:flex">
                         <RotateCcw className="w-4 h-4 mr-2" />
                         Restart
                     </Button>
@@ -133,6 +147,12 @@ const Minesweeper = () => {
                     onCellClick={handleCellClick}
                     onCellRightClick={handleCellRightClick}
                     isGameOver={gameState.isGameOver}
+                />
+
+                <MinesweeperControls
+                    isFlagMode={isFlagMode}
+                    onToggleMode={() => setIsFlagMode(!isFlagMode)}
+                    onRestart={startNewGame}
                 />
 
                 {gameState.isGameOver && (

@@ -159,7 +159,10 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                                     <XAxis
                                         dataKey="date"
-                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        tickFormatter={(str) => {
+                                            const [year, month, day] = str.split('-').map(Number);
+                                            return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                                        }}
                                         stroke="hsl(var(--muted-foreground))"
                                         fontSize={12}
                                     />
@@ -179,7 +182,10 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                                     <XAxis
                                         dataKey="date"
-                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        tickFormatter={(str) => {
+                                            const [year, month, day] = str.split('-').map(Number);
+                                            return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                                        }}
                                         stroke="hsl(var(--muted-foreground))"
                                         fontSize={12}
                                     />
@@ -212,7 +218,10 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                                     <XAxis
                                         dataKey="date"
-                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        tickFormatter={(str) => {
+                                            const [year, month, day] = str.split('-').map(Number);
+                                            return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                                        }}
                                         stroke="hsl(var(--muted-foreground))"
                                         fontSize={12}
                                     />
@@ -241,7 +250,10 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                                     <XAxis
                                         dataKey="date"
-                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        tickFormatter={(str) => {
+                                            const [year, month, day] = str.split('-').map(Number);
+                                            return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                                        }}
                                         stroke="hsl(var(--muted-foreground))"
                                         fontSize={12}
                                     />

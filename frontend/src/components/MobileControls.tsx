@@ -48,14 +48,7 @@ export const MobileControls = ({ onDirectionChange, onRestart }: MobileControlsP
             >
                 <ArrowLeft className="w-8 h-8 text-primary" />
             </Button>
-            <Button
-                variant="outline"
-                size="icon"
-                className="w-16 h-16 rounded-full border-primary/50 bg-background/80 active:bg-primary/20"
-                onClick={handleRestart}
-            >
-                <RotateCcw className="w-8 h-8 text-primary" />
-            </Button>
+            <div />
             <Button
                 variant="outline"
                 size="icon"

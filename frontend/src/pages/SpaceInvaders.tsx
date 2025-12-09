@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SpaceInvadersBoard } from '@/components/SpaceInvadersBoard';
+import { SpaceInvadersControls } from '@/components/SpaceInvadersControls';
 import {
     createInitialState,
     movePlayer,
@@ -44,30 +45,46 @@ const SpaceInvaders = () => {
     };
 
     // Handle keyboard input
+    const handleMoveLeft = useCallback(() => {
+        if (!isPlaying || gameState.isGameOver || gameState.isWon) return;
+        setGameState(prev => movePlayer(prev, 'left'));
+    }, [isPlaying, gameState.isGameOver, gameState.isWon]);
+
+    const handleMoveRight = useCallback(() => {
+        if (!isPlaying || gameState.isGameOver || gameState.isWon) return;
+        setGameState(prev => movePlayer(prev, 'right'));
+    }, [isPlaying, gameState.isGameOver, gameState.isWon]);
+
+    const handleShoot = useCallback(() => {
+        if (!isPlaying || gameState.isGameOver || gameState.isWon) return;
+        setGameState(prev => {
+            const newState = shootPlayerBullet(prev);
+            if (newState !== prev) {
+                playEat(); // Reuse eat sound for shooting
+            }
+            return newState;
+        });
+    }, [isPlaying, gameState.isGameOver, gameState.isWon, playEat]);
+
+    // Handle keyboard input
     const handleKeyPress = useCallback((e: KeyboardEvent) => {
         if (!isPlaying || gameState.isGameOver || gameState.isWon) return;
 
         switch (e.key) {
             case 'ArrowLeft':
                 e.preventDefault();
-                setGameState(prev => movePlayer(prev, 'left'));
+                handleMoveLeft();
                 break;
             case 'ArrowRight':
                 e.preventDefault();
-                setGameState(prev => movePlayer(prev, 'right'));
+                handleMoveRight();
                 break;
             case ' ':
                 e.preventDefault();
-                setGameState(prev => {
-                    const newState = shootPlayerBullet(prev);
-                    if (newState !== prev) {
-                        playEat(); // Reuse eat sound for shooting
-                    }
-                    return newState;
-                });
+                handleShoot();
                 break;
         }
-    }, [isPlaying, gameState.isGameOver, gameState.isWon, playEat]);
+    }, [isPlaying, gameState.isGameOver, gameState.isWon, handleMoveLeft, handleMoveRight, handleShoot]);
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyPress);
@@ -168,6 +185,13 @@ const SpaceInvaders = () => {
                     gameState={gameState}
                     gridWidth={GRID_WIDTH}
                     gridHeight={GRID_HEIGHT}
+                />
+
+                <SpaceInvadersControls
+                    onMoveLeft={handleMoveLeft}
+                    onMoveRight={handleMoveRight}
+                    onShoot={handleShoot}
+                    onRestart={resetGame}
                 />
 
                 <div className="text-center text-sm text-muted-foreground">
