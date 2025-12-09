@@ -174,32 +174,45 @@ async def get_best_per_user_per_mode(
     from sqlalchemy import func
     from sqlalchemy.orm import selectinload
     
-    # Subquery to get best scores
-    best_scores_subq = (
-        select(
-            DBLeaderboardEntry.username,
-            DBLeaderboardEntry.game_mode,
-            func.max(DBLeaderboardEntry.score).label('best_score'),
-            func.count().label('games_played')
-        )
-        .group_by(DBLeaderboardEntry.username, DBLeaderboardEntry.game_mode)
+    # Use window functions to get best score + timestamp + count per user/mode
+    # Inner query to calculate rank/row_number per user
+    inner_query = select(
+        DBLeaderboardEntry.username,
+        DBLeaderboardEntry.game_mode,
+        DBLeaderboardEntry.score,
+        DBLeaderboardEntry.timestamp,
+        func.count().over(partition_by=[DBLeaderboardEntry.username, DBLeaderboardEntry.game_mode]).label('games_played'),
+        func.row_number().over(
+            partition_by=[DBLeaderboardEntry.username, DBLeaderboardEntry.game_mode],
+            order_by=DBLeaderboardEntry.score.desc()
+        ).label('rn')
     )
     
     if gameMode:
-        best_scores_subq = best_scores_subq.where(DBLeaderboardEntry.game_mode == gameMode)
-    
-    # Group filtering
+        inner_query = inner_query.where(DBLeaderboardEntry.game_mode == gameMode)
+
+    # Group filtering before window function to be efficient
     if group_id and group_id != "all":
         user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        best_scores_subq = best_scores_subq.where(DBLeaderboardEntry.username.in_(user_subquery))
+        inner_query = inner_query.where(DBLeaderboardEntry.username.in_(user_subquery))
+        
+    subq = inner_query.subquery()
     
-    best_scores_subq = best_scores_subq.subquery()
+    # Filter for best score (rn=1)
+    best_scores_subq = select(
+        subq.c.username,
+        subq.c.game_mode,
+        subq.c.score.label('best_score'),
+        subq.c.timestamp,
+        subq.c.games_played
+    ).where(subq.c.rn == 1).subquery()
     
-    # Main query with ranking
+    # Main query with global ranking per mode
     query = select(
         best_scores_subq.c.username,
         best_scores_subq.c.game_mode,
         best_scores_subq.c.best_score,
+        best_scores_subq.c.timestamp,
         best_scores_subq.c.games_played,
         func.rank().over(
             partition_by=best_scores_subq.c.game_mode,
@@ -226,6 +239,7 @@ async def get_best_per_user_per_mode(
             "username": e.username,
             "game_mode": e.game_mode,
             "best_score": e.best_score,
+            "timestamp": e.timestamp,
             "games_played": e.games_played,
             "rank": e.rank,
             "groups": users_map.get(e.username, [])

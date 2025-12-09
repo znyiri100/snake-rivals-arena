@@ -35,6 +35,7 @@ export interface UserGameModeRank {
     username: string;
     game_mode: string;
     best_score: number;
+    timestamp: Date;
     games_played: number;
     rank: number;
     groups?: Group[];
