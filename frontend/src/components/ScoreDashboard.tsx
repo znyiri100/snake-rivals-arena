@@ -165,11 +165,16 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                         }}
                                         stroke="hsl(var(--muted-foreground))"
                                         fontSize={12}
+                                        interval="preserveStartEnd"
                                     />
                                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                                         labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                        labelFormatter={(str) => {
+                                            const [year, month, day] = str.split('-').map(Number);
+                                            return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                                        }}
                                     />
                                     <Legend />
                                     <Line type="monotone" dataKey="snake" name="Snake" stroke="#22c55e" strokeWidth={2} dot={false} />
@@ -188,11 +193,16 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                         }}
                                         stroke="hsl(var(--muted-foreground))"
                                         fontSize={12}
+                                        interval="preserveStartEnd"
                                     />
                                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                                         labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                        labelFormatter={(str) => {
+                                            const [year, month, day] = str.split('-').map(Number);
+                                            return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                                        }}
                                     />
                                     <Legend />
                                     <Bar dataKey="snake" name="Snake" stackId="1" fill="#22c55e" />
@@ -224,11 +234,16 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                         }}
                                         stroke="hsl(var(--muted-foreground))"
                                         fontSize={12}
+                                        interval="preserveStartEnd"
                                     />
                                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                                         labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                        labelFormatter={(str) => {
+                                            const [year, month, day] = str.split('-').map(Number);
+                                            return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                                        }}
                                     />
                                     <Legend />
                                     {activityByUser.length > 0 && Object.keys(activityByUser[0] || {})
@@ -256,11 +271,16 @@ export const ScoreDashboard = ({ groupId }: ScoreDashboardProps) => {
                                         }}
                                         stroke="hsl(var(--muted-foreground))"
                                         fontSize={12}
+                                        interval="preserveStartEnd"
                                     />
                                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                                         labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                        labelFormatter={(str) => {
+                                            const [year, month, day] = str.split('-').map(Number);
+                                            return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                                        }}
                                     />
                                     <Legend />
                                     {activityByUser.length > 0 && Object.keys(activityByUser[0] || {})

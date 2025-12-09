@@ -55,6 +55,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     const [topNData, setTopNData] = useState<Record<string, UserGameModeRank[]>>({});
     const [overallRankings, setOverallRankings] = useState<OverallRanking[]>([]);
     const [isNormalized, setIsNormalized] = useState(true);
+    const [playerChartType, setPlayerChartType] = useState<'radar' | 'bar'>('radar');
 
     // Load available groups
     useEffect(() => {
@@ -79,8 +80,13 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                         setAllScores(scores);
                         break;
                     case 'best-per-user':
-                        const best = await api.getBestPerUserPerMode(mode, groupId);
+                        // Fetch both best scores (for stats/charts) and all scores (for history list)
+                        const [best, all] = await Promise.all([
+                            api.getBestPerUserPerMode(mode, groupId),
+                            api.getAllScoresRanked(mode, groupId, sortBy)
+                        ]);
                         setBestPerUser(best);
+                        setAllScores(all);
                         break;
                     case 'top-n':
                         const topN = await api.getTopNPerMode(topNLimit, groupId);
@@ -131,7 +137,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                     {GAME_MODE_LABELS[entry.game_mode] || entry.game_mode}
                                 </Badge>
                                 <span className="text-xs text-muted-foreground">
-                                    {new Date(entry.timestamp).toLocaleDateString()}
+                                    {new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                 </span>
                             </div>
                         </div>
@@ -146,110 +152,170 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
 
     const renderBestPerUser = () => {
         // Filter by selected player if set
-        const filteredData = selectedPlayer === 'all'
+        const filteredBestData = selectedPlayer === 'all'
             ? bestPerUser
             : bestPerUser.filter(entry => entry.username === selectedPlayer);
 
-        // Sort logic
-        const sortData = (data: UserGameModeRank[]) => {
+        const filteredHistoryData = selectedPlayer === 'all'
+            ? allScores
+            : allScores.filter(entry => entry.username === selectedPlayer);
+
+        // Sort logic for history
+        const sortData = (data: RankedScore[]) => {
             if (sortBy === 'date') {
                 return [...data].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
             }
-            return data;
+            return data; // Previously sorted by rank from backend if sortBy != date
         };
 
-        const sortedData = sortData(filteredData);
+        const sortedHistory = sortData(filteredHistoryData);
+
+        // Derive Chart Data from Best Scores
+        // For Bar Chart: We want Best Score per Mode.
+        // For Radar: We want Rank per Mode.
+        const chartData = Object.keys(GAME_MODE_LABELS).map(mode => {
+            const entry = filteredBestData.find(d => d.game_mode === mode);
+            // Rank: Lower is better. For chart we might want inverted or raw.
+            // Stacked Bar? If multiple players (all selected), maybe stack by user?
+            // "Stacking" implies summing usually, or grouping.
+            // Recharts <Bar stackId="a" /> stacks them.
+            // But we have filteredBestData which might have multiple users for 'all'.
+            // If Single Player: Just 1 bar per mode.
+
+            // If 'all' players, we can't easily show a bar chart of 50 users. 
+            // So we'll limit Chart to when a Single Player is selected, OR just show top stats?
+            // The Radar code currently only shows if `selectedPlayer !== 'all'`.
+            // Let's keep that restriction for the charts for clarity unless requested.
+            return {
+                mode: mode,
+                label: GAME_MODE_LABELS[mode],
+                bestScore: entry ? entry.best_score : 0,
+                rank: entry ? entry.rank : 0
+            };
+        });
 
         return (
             <div className="space-y-6">
-                {/* Radar Chart for Single Player */}
+                {/* Charts Area - Only for specific player for now to be cleanly readable */}
                 {selectedPlayer !== 'all' && (
                     <Card className="p-6 bg-card/50 border-primary/20 mb-6">
-                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-foreground">
-                            <Activity className="w-5 h-5 text-primary" />
-                            Performance Radar (Rankings)
-                        </h3>
+                        <div className="flex items-center justify-between mb-4 gap-4">
+                            <h3 className="text-lg font-bold flex items-center gap-2 text-foreground">
+                                <Activity className="w-5 h-5 text-primary" />
+                                Player Performance
+                            </h3>
+                            <div className="flex items-center space-x-2 bg-muted/50 p-1 rounded-lg border border-border">
+                                <Button
+                                    variant={playerChartType === 'radar' ? 'secondary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setPlayerChartType('radar')}
+                                    className="h-7 text-xs"
+                                >
+                                    Radar
+                                </Button>
+                                <Button
+                                    variant={playerChartType === 'bar' ? 'secondary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setPlayerChartType('bar')}
+                                    className="h-7 text-xs"
+                                >
+                                    Bar
+                                </Button>
+                            </div>
+                        </div>
+
                         <div className="h-[300px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={
-                                    (() => {
-                                        const MAX_DOMAIN = Math.max(10, ...filteredData.map(d => d.rank));
-                                        return Object.keys(GAME_MODE_LABELS).map(mode => {
-                                            const entry = filteredData.find(d => d.game_mode === mode);
-                                            const rank = entry ? entry.rank : 0;
+                                {playerChartType === 'radar' ? (
+                                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={
+                                        chartData.map(d => {
+                                            const MAX_DOMAIN = Math.max(10, ...filteredBestData.map(x => x.rank));
                                             return {
-                                                subject: GAME_MODE_LABELS[mode],
-                                                rank: rank,
-                                                // If unranked (0), show 0. Else invert: (1 -> MAX, MAX -> 1)
-                                                inverseRank: rank === 0 ? 0 : (MAX_DOMAIN + 1 - rank),
+                                                ...d,
+                                                inverseRank: d.rank === 0 ? 0 : (MAX_DOMAIN + 1 - d.rank),
                                                 fullMark: MAX_DOMAIN
                                             };
-                                        });
-                                    })()
-                                }>
-                                    <PolarGrid stroke="#333" />
-                                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 12 }} />
-                                    <PolarRadiusAxis
-                                        angle={30}
-                                        domain={[0, 'auto']}
-                                        tick={{ fill: '#888' }}
-                                        // Hide ticks as they are inverted and confusing
-                                        tickFormatter={() => ''}
-                                    />
-                                    <Radar
-                                        name={selectedPlayer}
-                                        dataKey="inverseRank"
-                                        stroke="#8884d8"
-                                        fill="#8884d8"
-                                        fillOpacity={0.6}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', color: '#fff' }}
-                                        formatter={(value: number, name: string, props: any) => {
-                                            const rank = props.payload.rank;
-                                            return rank === 0 ? ['Not Ranked', 'Rank'] : [`#${rank}`, 'Rank'];
-                                        }}
-                                    />
-                                </RadarChart>
+                                        })
+                                    }>
+                                        <PolarGrid stroke="#333" />
+                                        <PolarAngleAxis dataKey="label" tick={{ fill: '#888', fontSize: 12 }} />
+                                        <PolarRadiusAxis angle={30} domain={[0, 'auto']} tick={false} axisLine={false} />
+                                        <Radar
+                                            name={selectedPlayer}
+                                            dataKey="inverseRank"
+                                            stroke="#8884d8"
+                                            fill="#8884d8"
+                                            fillOpacity={0.6}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', color: '#fff' }}
+                                            formatter={(value: number, name: string, props: any) => {
+                                                const rank = props.payload.rank;
+                                                return rank === 0 ? ['Not Ranked', 'Rank'] : [`#${rank}`, 'Rank'];
+                                            }}
+                                        />
+                                    </RadarChart>
+                                ) : (
+                                    <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                                        <XAxis dataKey="label" stroke="#888" tick={{ fill: '#888', fontSize: 12 }} />
+                                        <YAxis stroke="#888" tick={{ fill: '#888', fontSize: 12 }} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', color: '#fff' }}
+                                            cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                                            formatter={(value: number) => [value.toLocaleString(), 'Best Score']}
+                                        />
+                                        <Bar dataKey="bestScore" name="Best Score" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                                    </BarChart>
+                                )}
                             </ResponsiveContainer>
                         </div>
                     </Card>
                 )}
 
                 <div className="space-y-2">
-                    {sortedData.length === 0 ? (
+                    {/* Header for List */}
+                    <div className="flex items-center justify-between text-sm text-foreground mb-2 px-2">
+                        <span className="font-bold">Match History ({sortedHistory.length})</span>
+                    </div>
+
+                    {sortedHistory.length === 0 ? (
                         <div className="text-center p-8 text-muted-foreground border border-dashed border-border rounded">
-                            No data found for this selection.
+                            No games played yet.
                         </div>
                     ) : (
-                        sortedData.map((entry) => (
-                            <div
-                                key={`${entry.username}-${entry.game_mode}`}
-                                className="flex items-center justify-between p-3 bg-muted/50 rounded border border-border hover:border-primary/50 transition-colors"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 text-center font-bold">
-                                        {getRankIcon(entry.rank) || `#${entry.rank}`}
+                        <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
+                            {sortedHistory.map((entry) => (
+                                <div
+                                    key={entry.id} // Use unique ID from allScores
+                                    className="flex items-center justify-between p-3 bg-muted/50 rounded border border-border hover:border-primary/50 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 text-center font-bold">
+                                            {/* Rank in history is usually the 'match rank' (rank of that specific score today). 
+                                                If backend returns 'rank' in getAllScoresRanked, it's the rank of that score in the DB. */}
+                                            {getRankIcon(entry.rank) || `#${entry.rank}`}
+                                        </div>
+                                        <div>
+                                            <div className="font-semibold text-foreground flex items-center gap-2">
+                                                {entry.username}
+                                                <Badge variant="outline" className="text-xs font-normal border-primary/20 bg-primary/5">
+                                                    {GAME_MODE_LABELS[entry.game_mode] || entry.game_mode}
+                                                </Badge>
+                                            </div>
+                                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                {/* games_played is not in RankedScore, only in UserGameModeRank. 
+                                                    We can omit it or calculate it if needed. For history list, timestamp is more important. */}
+                                                <span>{new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div className="font-semibold text-foreground flex items-center gap-2">
-                                            {entry.username}
-                                            <Badge variant="outline" className="text-xs font-normal border-primary/20 bg-primary/5">
-                                                {GAME_MODE_LABELS[entry.game_mode] || entry.game_mode}
-                                            </Badge>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                            <span>{entry.games_played} games</span>
-                                            <span>•</span>
-                                            <span>{new Date(entry.timestamp).toLocaleDateString()}</span>
-                                        </div>
+                                    <div className="text-xl font-bold text-primary neon-text">
+                                        {entry.score}
                                     </div>
                                 </div>
-                                <div className="text-xl font-bold text-primary neon-text">
-                                    {entry.best_score}
-                                </div>
-                            </div>
-                        ))
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>

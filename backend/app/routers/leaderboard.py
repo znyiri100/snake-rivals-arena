@@ -570,7 +570,7 @@ async def get_activity_trends(
             activity[date.strftime('%Y-%m-%d')] = count
             
     final_data = []
-    for i in range(days):
+    for i in range(days + 1):
         d = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
         final_data.append({
             "date": d,
@@ -616,7 +616,7 @@ async def get_activity_by_mode(
     data_map = {}
     
     # Initialize all dates with 0s
-    for i in range(days):
+    for i in range(days + 1):
         d = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
         data_map[d] = {"date": d}
         # We don't know all modes yet effectively, but we can fill them in as we see them or just rely on recharts handling missing keys (it does, usually treats as undefined/0 if handled)
@@ -687,7 +687,7 @@ async def get_activity_by_user(
     data_map = {}
     
     # Initialize dates
-    for i in range(days):
+    for i in range(days + 1):
         d = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
         data_map[d] = {"date": d}
         for u in top_users:
