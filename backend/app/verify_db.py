@@ -19,7 +19,7 @@ async def verify():
             print(row)
             
         print("\n--- Leaderboard ---")
-        result = await session.execute(text("SELECT username, score, game_mode FROM leaderboard"))
+        result = await session.execute(text("SELECT username, user_id, score, game_mode FROM leaderboard"))
         for row in result:
             print(row)
 

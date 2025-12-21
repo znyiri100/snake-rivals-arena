@@ -84,6 +84,7 @@ async def seed_test_data():
                     score = random.randint(100, 5000)
                     entry = LeaderboardEntry(
                         username=user.username,
+                        user_id=user.id,
                         score=score,
                         game_mode=mode
                     )
