@@ -43,7 +43,7 @@ open http://localhost:8000
 To start the application using the remote production database:
 
 ```bash
-DATABASE_URL="postgresql+asyncpg://snake_user:pMdiYRvQYAPKaHx4jSt0Oi5WDvQLsEj0@dpg-d4l5fj3uibrs73fris3g-a.oregon-postgres.render.com/snake_rivals" docker compose up -d --build app
+DATABASE_URL="postgresql+asyncpg://snake_user.xsvwyiyhghmhsdugotcx:<PASSWORD>@aws-1-us-east-1.pooler.supabase.com:5432/snake_rivals" docker compose up -d --build app
 ```
 
 ### Local Development (Docker)
@@ -309,8 +309,8 @@ If you also want to run the backend locally (e.g. for debugging Python code):
    uv sync
    # Run the server (auto-reloads on change)
    # If using local docker DB, separate credentials might be needed or default 'user/password' works if defined in docker-compose
-   <!-- DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/snake_rivals"  -->
-   DATABASE_URL="postgresql+asyncpg://snake_user:pMdiYRvQYAPKaHx4jSt0Oi5WDvQLsEj0@dpg-d4l5fj3uibrs73fris3g-a.oregon-postgres.render.com/snake_rivals" uv run uvicorn app.main:app --reload --port 8000
+   # DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/snake_rivals"
+   DATABASE_URL="postgresql+asyncpg://snake_user.xsvwyiyhghmhsdugotcx:<PASSWORD>@aws-1-us-east-1.pooler.supabase.com:5432/snake_rivals" uv run uvicorn app.main:app --reload --port 8000
    ```
    
    *Note: If using remote DB, replace the DATABASE_URL with the remote one.*
@@ -319,5 +319,5 @@ If you also want to run the backend locally (e.g. for debugging Python code):
 
 To start the dokerized application:
 ```bash
-DATABASE_URL="postgresql+asyncpg://snake_user:pMdiYRvQYAPKaHx4jSt0Oi5WDvQLsEj0@dpg-d4l5fj3uibrs73fris3g-a.oregon-postgres.render.com/snake_rivals" docker compose up -d --build app
+DATABASE_URL="postgresql+asyncpg://snake_user.xsvwyiyhghmhsdugotcx:<PASSWORD>@aws-1-us-east-1.pooler.supabase.com:5432/snake_rivals" docker compose up -d --build app
 ```
