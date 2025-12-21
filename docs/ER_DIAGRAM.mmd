@@ -10,8 +10,8 @@ erDiagram
       STRING name "unique"
     }
     USER_GROUPS {
-      STRING user_id PK FK "users.id"
-      STRING group_id PK FK "groups.id"
+      STRING user_id PK, FK "users.id"
+      STRING group_id PK, FK "groups.id"
     }
     LEADERBOARD {
       STRING id PK "uuid"
@@ -20,16 +20,7 @@ erDiagram
       STRING game_mode "enum(GameMode)"
       DATETIME timestamp
     }
-    SESSIONS {
-      STRING id PK "uuid"
-      STRING user_id "indexed, NOT FK in code"
-      STRING username "snapshot"
-      INTEGER score
-      STRING game_mode "enum(GameMode)"
-      BOOLEAN is_active
-    }
 
     USERS ||--o{ USER_GROUPS : "belongs to"
     GROUPS ||--o{ USER_GROUPS : "contains"
-    USERS ||--o{ SESSIONS : "has (logical 1→many)"
     USERS ||--o{ LEADERBOARD : "has (logical 1→many, stored as snapshot)"

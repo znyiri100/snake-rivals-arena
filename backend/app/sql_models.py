@@ -18,6 +18,7 @@ class User(Base):
     hashed_password = Column(String)
 
     groups = relationship("Group", secondary="user_groups", back_populates="users")
+    leaderboard_entries = relationship("LeaderboardEntry", back_populates="user")
 
     __table_args__ = (
         # Composite unique constraints for (group_id, username) and (group_id, email)
@@ -50,17 +51,11 @@ class LeaderboardEntry(Base):
     __tablename__ = "leaderboard"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    # Allow user_id to be nullable for backward compatibility during migration
+    user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     username = Column(String, index=True)
     score = Column(Integer)
     game_mode = Column(SQLEnum(GameMode))
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
-class GameSession(Base):
-    __tablename__ = "sessions"
-
-    id = Column(String, primary_key=True, default=generate_uuid)
-    user_id = Column(String, index=True)
-    username = Column(String)
-    score = Column(Integer, default=0)
-    game_mode = Column(SQLEnum(GameMode))
-    is_active = Column(Boolean, default=True)
+    user = relationship("User", back_populates="leaderboard_entries")

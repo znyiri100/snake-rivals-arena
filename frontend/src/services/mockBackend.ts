@@ -14,15 +14,6 @@ export interface LeaderboardEntry {
   timestamp: Date;
 }
 
-export interface GameSession {
-  id: string;
-  userId: string;
-  username: string;
-  score: number;
-  gameMode: 'passthrough' | 'walls';
-  isActive: boolean;
-}
-
 // Mock data storage
 let currentUser: User | null = null;
 const users: Map<string, User & { password: string }> = new Map();
@@ -35,12 +26,6 @@ const leaderboard: LeaderboardEntry[] = [
   { id: '6', username: 'PixelPro', score: 1420, gameMode: 'passthrough', timestamp: new Date() },
   { id: '7', username: 'RetroGamer', score: 1180, gameMode: 'walls', timestamp: new Date() },
   { id: '8', username: 'NeonViper', score: 950, gameMode: 'passthrough', timestamp: new Date() },
-];
-
-const activeSessions: GameSession[] = [
-  { id: '1', userId: '1', username: 'SnakeMaster', score: 850, gameMode: 'walls', isActive: true },
-  { id: '2', userId: '2', username: 'NeonKing', score: 620, gameMode: 'passthrough', isActive: true },
-  { id: '3', userId: '3', username: 'GridRunner', score: 410, gameMode: 'walls', isActive: true },
 ];
 
 // Mock API delay
@@ -117,25 +102,6 @@ export const mockBackend = {
 
     leaderboard.push(entry);
     leaderboard.sort((a, b) => b.score - a.score);
-  },
-
-  // Active game sessions (for watching)
-  async getActiveSessions(): Promise<GameSession[]> {
-    await delay(200);
-    return [...activeSessions];
-  },
-
-  async getSessionById(id: string): Promise<GameSession | null> {
-    await delay(200);
-    return activeSessions.find(session => session.id === id) || null;
-  },
-
-  // Simulate active session updates
-  updateSessionScore(sessionId: string, score: number): void {
-    const session = activeSessions.find(s => s.id === sessionId);
-    if (session) {
-      session.score = score;
-    }
   },
 
   // For testing purposes

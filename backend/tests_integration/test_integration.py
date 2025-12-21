@@ -61,12 +61,8 @@ async def test_leaderboard_flow(client: AsyncClient):
     assert entries[0]["username"] == "gamer1"
     assert entries[0]["score"] == 500
 
-@pytest.mark.asyncio
-async def test_sessions_flow(client: AsyncClient):
-    # 1. Get sessions (should be empty initially or whatever is in DB, but this is a fresh test DB)
-    response = await client.get("/sessions")
+    # Verify we got something back
     assert response.status_code == 200
-    # Note: We don't have an endpoint to CREATE a session explicitly in the API yet, 
-    # sessions are usually created via WebSocket or internal logic.
-    # But we can verify the endpoint works.
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert isinstance(data, list)
+

@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 from pathlib import Path
 from .db import init_db
-from .routers import auth, leaderboard, sessions
+from .routers import auth, leaderboard
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,7 +31,6 @@ app.add_middleware(
 # Include API routers with /api prefix
 app.include_router(auth.router, prefix="/api")
 app.include_router(leaderboard.router, prefix="/api")
-app.include_router(sessions.router, prefix="/api")
 
 # Mount static files for frontend
 static_dir = Path(__file__).parent.parent / "static"

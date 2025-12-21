@@ -48,16 +48,6 @@ class ScoreSubmission(BaseModel):
     score: int
     gameMode: GameMode
 
-class GameSession(BaseModel):
-    id: str
-    userId: str
-    username: str
-    score: int
-    game_mode: GameMode = Field(alias="gameMode")
-    isActive: bool
-    
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
 class ErrorResponse(BaseModel):
     success: bool = False
     error: str

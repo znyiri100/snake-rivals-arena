@@ -194,12 +194,6 @@ class ApiService {
         }
     }
 
-    // Active game sessions
-
-
-    // Simulate active session updates (Not supported by backend yet, so no-op or socket)
-
-
     // Groups
     async getGroups(): Promise<Group[]> {
         try {

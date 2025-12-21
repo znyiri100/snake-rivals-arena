@@ -60,15 +60,6 @@ The backend uses **SQLAlchemy** for ORM and **Pydantic** for validation/serializ
 - `timestamp` (DateTime, server default: now): When entry was created
 - **Note**: Stores username snapshot (not FK) so entries persist even if username changes
 
-#### **Sessions** (`sessions` table)
-- `id` (String UUID, PK): Session identifier
-- `user_id` (String, indexed): Reference to user (currently not a DB foreign key—consider adding for integrity)
-- `username` (String): Username snapshot for session
-- `score` (Integer, default 0): Current session score
-- `game_mode` (Enum): Game mode for this session
-- `is_active` (Boolean, default True): Whether session is active
-- **Relationships**: Logically one User → many Sessions (no DB-enforced FK currently)
-
 ### Enums
 
 - **GameMode**: `"passthrough"` or `"walls"` — defines game difficulty/variant
@@ -90,6 +81,5 @@ The backend automatically converts `postgres://` URLs to `postgresql+asyncpg://`
 
 - All primary keys are **UUID strings** (not auto-incrementing integers)
 - `user_groups` enforces referential integrity for user–group links
-- `sessions.user_id` is indexed but not a DB foreign key (simplifies session logic; consider adding FK for stricter integrity)
 - `leaderboard` intentionally stores `username` snapshots for historical accuracy (entries survive username changes)
 - Pydantic models use field aliases (e.g., `gameMode`, `userId`, `isActive`) to match frontend camelCase conventions; `populate_by_name=True` allows both field name and alias in requests/responses

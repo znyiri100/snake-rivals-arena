@@ -89,13 +89,27 @@ const Minesweeper = () => {
             playGameOver();
             toast.error('Game Over! You hit a mine.');
             if (user) {
-                api.submitScore(newScore, 'minesweeper');
+                api.submitScore(newScore, 'minesweeper')
+                    .then(() => toast.success('Score saved!'))
+                    .catch((e) => {
+                        console.error(e);
+                        toast.error('Failed to save score');
+                    });
+            } else {
+                toast.error('Score not saved. Please log in.');
             }
         } else if (isWon) {
             // playWin(); // Need to add win sound or reuse
             toast.success('Congratulations! You won!');
             if (user) {
-                api.submitScore(newScore, 'minesweeper');
+                api.submitScore(newScore, 'minesweeper')
+                    .then(() => toast.success('Score saved!'))
+                    .catch((e) => {
+                         console.error(e);
+                         toast.error('Failed to save score');
+                    });
+            } else {
+                toast.error('Score not saved. Please log in.');
             }
         }
 

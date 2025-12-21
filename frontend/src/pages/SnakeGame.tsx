@@ -14,12 +14,14 @@ import {
     type GameState
 } from '@/utils/gameLogic';
 import { Play, Pause, RotateCcw, ArrowLeft } from 'lucide-react';
-import { useSound } from '@/contexts/SoundContext';
+import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 
 const SnakeGame = () => {
+    // const { toast } = useToast(); // Removed
     const { playEat, playGameOver, playClick } = useSound();
     const [user, setUser] = useState(api.getCurrentUser());
+    const [hasSubmitted, setHasSubmitted] = useState(false);
 
     useEffect(() => {
         // Fetch user on mount to ensure we have the latest state (e.g. from token)
@@ -36,10 +38,12 @@ const SnakeGame = () => {
     const startGame = (mode: GameMode) => {
         setSelectedMode(mode);
         setGameState(getInitialGameState(mode));
+        setHasSubmitted(false);
     };
 
     const resetGame = () => {
         setGameState(getInitialGameState('snake'));
+        setHasSubmitted(false);
     };
 
     const togglePause = () => {
@@ -124,10 +128,25 @@ const SnakeGame = () => {
 
     // Submit score on game over
     useEffect(() => {
-        if (gameState?.isGameOver && user) {
-            api.submitScore(gameState.score, 'snake');
+        if (gameState?.isGameOver && !hasSubmitted) {
+            if (user) {
+                const submit = async () => {
+                    try {
+                        await api.submitScore(gameState.score, 'snake');
+                        setHasSubmitted(true);
+                        toast.success(`Score Saved! You scored ${gameState.score} points.`);
+                    } catch (e) {
+                        console.error("Score submission failed:", e);
+                        toast.error("Error Saving Score. Could not submit your score to the leaderboard.");
+                    }
+                };
+                submit();
+            } else {
+                setHasSubmitted(true); // Prevent repeated warnings
+                toast.error("Score Not Saved. Please log in to save your high scores.");
+            }
         }
-    }, [gameState?.isGameOver, user]);
+    }, [gameState?.isGameOver, user, hasSubmitted, gameState?.score]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4 pt-16 flex flex-col items-center">

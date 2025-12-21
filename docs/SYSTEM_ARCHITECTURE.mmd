@@ -1,0 +1,30 @@
+graph TD
+    subgraph Client [User's Browser]
+        UI[React Frontend]
+        style UI fill:#61dafb,stroke:#333,stroke-width:2px,color:black
+    end
+
+    subgraph DockerHost [Docker Container Host]
+        subgraph AppContainer [Application Service]
+            API[FastAPI Backend]
+            style API fill:#009485,stroke:#333,stroke-width:2px,color:white
+            
+            Static[Static Files Server]
+            style Static fill:#e1e1e1,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5,color:black
+        end
+    end
+
+    subgraph CloudLayer [Cloud Infrastructure - Supabase]
+        DB[(PostgreSQL Database)]
+        style DB fill:#336791,stroke:#333,stroke-width:2px,color:white
+    end
+
+    %% Interactions
+    User((User)) -->|HTTP/8000| UI
+    UI -->|REST API / JSON| API
+    
+    %% Internal Interactions
+    API -->|"SQL / AsyncPG :5432 (Remote)"| DB
+    
+    %% Note on Deployment
+    AppContainer -.->|Serves| UI

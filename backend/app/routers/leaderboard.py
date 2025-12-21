@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload, joinedload
 from ..models import LeaderboardEntry, ScoreSubmission, GameMode, Group as ModelGroup
 from ..sql_models import LeaderboardEntry as DBLeaderboardEntry, User as DBUser, Group as DBGroup
 from ..db import get_db
@@ -18,20 +19,29 @@ async def get_leaderboard(
     db: AsyncSession = Depends(get_db),
     authorization: Optional[str] = Header(None)
 ):
-    # 1. Base query for LeaderboardEntry
-    query = select(DBLeaderboardEntry).order_by(DBLeaderboardEntry.score.desc())
+    # 1. Base query for LeaderboardEntry with eager loading of user and their groups
+    query = (
+        select(DBLeaderboardEntry)
+        .options(
+            selectinload(DBLeaderboardEntry.user).selectinload(DBUser.groups)
+        )
+        .order_by(DBLeaderboardEntry.score.desc())
+    )
     
     if gameMode:
         query = query.where(DBLeaderboardEntry.game_mode == gameMode)
         
     # 2. Handle Group Filtering
-    if group_id:
-        if group_id != "all":
-            # Filter by users in the specific group
-            subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-            query = query.where(DBLeaderboardEntry.username.in_(subquery))
-    else:
-        # Default group logic
+    if group_id and group_id != "all":
+        # Join User and Groups to filter
+        query = (
+            query
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
+    elif not group_id:
+        # Default group logic: Filter by the current user's first group if applicable
         current_user = None
         if authorization and authorization.lower().startswith("bearer "):
             token = authorization.split(" ", 1)[1]
@@ -42,45 +52,32 @@ async def get_leaderboard(
 
         if current_user and getattr(current_user, "groups", None):
             default_gid = current_user.groups[0].id
-            subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == default_gid)
-            query = query.where(DBLeaderboardEntry.username.in_(subquery))
+            query = (
+                query
+                .join(DBLeaderboardEntry.user)
+                .join(DBUser.groups)
+                .where(DBGroup.id == default_gid)
+            )
 
     # Execute main query
     result = await db.execute(query)
     entries = result.scalars().all()
 
-    # 3. Efficiently fetch Users with Groups (Eager Loading)
-    # We need the groups for each user in the leaderboard to display them.
-    # Instead of iterating and lazy-loading (which fails in async), we fetch all relevant users with their groups in one go.
-    
-    usernames = list({e.username for e in entries})
-    users_map: Dict[str, List[Dict[str, str]]] = {}
-    
-    if usernames:
-        # Use selectinload to fetch groups eagerly
-        from sqlalchemy.orm import selectinload
-        user_query = (
-            select(DBUser)
-            .where(DBUser.username.in_(usernames))
-            .options(selectinload(DBUser.groups))
-        )
-        u_res = await db.execute(user_query)
-        users = u_res.scalars().all()
-        
-        for u in users:
-            g_list = [{"id": g.id, "name": g.name} for g in u.groups]
-            users_map[u.username] = g_list
-
-    # 4. Build Response
+    # 3. Build Response
     out = []
     for e in entries:
+        # Gracefully handle missing user relation if data integrity was previously compromised
+        user_groups = []
+        if e.user and e.user.groups:
+            user_groups = [{"id": g.id, "name": g.name} for g in e.user.groups]
+            
         out.append({
             "id": e.id,
             "username": e.username,
             "score": e.score,
             "gameMode": e.game_mode,
             "timestamp": e.timestamp,
-            "groups": users_map.get(e.username, [])
+            "groups": user_groups
         })
 
     return out
@@ -89,6 +86,7 @@ async def get_leaderboard(
 async def submit_score(submission: ScoreSubmission, current_user: DBUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     entry = DBLeaderboardEntry(
         username=current_user.username,
+        user_id=current_user.id, # Populate the new FK
         score=submission.score,
         game_mode=submission.gameMode,
         timestamp=datetime.now()
@@ -107,7 +105,6 @@ async def get_all_scores_ranked(
 ):
     """Get all individual scores ranked by score descending"""
     from sqlalchemy import func
-    from sqlalchemy.orm import selectinload
     
     # Base query
     query = select(
@@ -119,7 +116,8 @@ async def get_all_scores_ranked(
         func.rank().over(
             partition_by=DBLeaderboardEntry.game_mode if gameMode is None else None,
             order_by=DBLeaderboardEntry.score.desc()
-        ).label('rank')
+        ).label('rank'),
+        DBLeaderboardEntry.user_id # Fetch user_id to help with eager loading later if needed
     )
     
     # Sorting logic
@@ -132,23 +130,34 @@ async def get_all_scores_ranked(
     if gameMode:
         query = query.where(DBLeaderboardEntry.game_mode == gameMode)
     
-    # Group filtering
+    # Group filtering using Joins
     if group_id and group_id != "all":
-        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        query = query.where(DBLeaderboardEntry.username.in_(subquery))
+        query = (
+            query
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
     
     result = await db.execute(query)
     entries = result.all()
     
-    # Fetch user groups
-    usernames = list({e.username for e in entries})
+    # Fetch user groups efficiently
+    # Since we select specific columns, we don't have the ORM objects with relationships loaded.
+    # We'll gather user IDs and fetch their groups.
+    user_ids = list({e.user_id for e in entries if e.user_id})
     users_map: Dict[str, List[Dict[str, str]]] = {}
     
-    if usernames:
-        user_query = select(DBUser).where(DBUser.username.in_(usernames)).options(selectinload(DBUser.groups))
+    if user_ids:
+        user_query = (
+            select(DBUser)
+            .where(DBUser.id.in_(user_ids))
+            .options(selectinload(DBUser.groups))
+        )
         u_res = await db.execute(user_query)
         users = u_res.scalars().all()
         for u in users:
+            # Map by username as the response format expects it, but we joined by ID
             users_map[u.username] = [{"id": g.id, "name": g.name} for g in u.groups]
     
     return [
@@ -172,12 +181,12 @@ async def get_best_per_user_per_mode(
 ):
     """Get best score per user per game mode with rankings"""
     from sqlalchemy import func
-    from sqlalchemy.orm import selectinload
     
     # Use window functions to get best score + timestamp + count per user/mode
     # Inner query to calculate rank/row_number per user
     inner_query = select(
         DBLeaderboardEntry.username,
+        DBLeaderboardEntry.user_id,
         DBLeaderboardEntry.game_mode,
         DBLeaderboardEntry.score,
         DBLeaderboardEntry.timestamp,
@@ -191,16 +200,21 @@ async def get_best_per_user_per_mode(
     if gameMode:
         inner_query = inner_query.where(DBLeaderboardEntry.game_mode == gameMode)
 
-    # Group filtering before window function to be efficient
+    # Group filtering via Joins
     if group_id and group_id != "all":
-        user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        inner_query = inner_query.where(DBLeaderboardEntry.username.in_(user_subquery))
+        inner_query = (
+            inner_query
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
         
     subq = inner_query.subquery()
     
     # Filter for best score (rn=1)
     best_scores_subq = select(
         subq.c.username,
+        subq.c.user_id,
         subq.c.game_mode,
         subq.c.score.label('best_score'),
         subq.c.timestamp,
@@ -210,6 +224,7 @@ async def get_best_per_user_per_mode(
     # Main query with global ranking per mode
     query = select(
         best_scores_subq.c.username,
+        best_scores_subq.c.user_id,
         best_scores_subq.c.game_mode,
         best_scores_subq.c.best_score,
         best_scores_subq.c.timestamp,
@@ -224,11 +239,11 @@ async def get_best_per_user_per_mode(
     entries = result.all()
     
     # Fetch user groups
-    usernames = list({e.username for e in entries})
+    user_ids = list({e.user_id for e in entries if e.user_id})
     users_map: Dict[str, List[Dict[str, str]]] = {}
     
-    if usernames:
-        user_query = select(DBUser).where(DBUser.username.in_(usernames)).options(selectinload(DBUser.groups))
+    if user_ids:
+        user_query = select(DBUser).where(DBUser.id.in_(user_ids)).options(selectinload(DBUser.groups))
         u_res = await db.execute(user_query)
         users = u_res.scalars().all()
         for u in users:
@@ -255,28 +270,33 @@ async def get_top_n_per_mode(
 ):
     """Get top N players for each game mode"""
     from sqlalchemy import func
-    from sqlalchemy.orm import selectinload
     
     # Get best scores per user per mode
     best_scores_subq = (
         select(
             DBLeaderboardEntry.username,
+            DBLeaderboardEntry.user_id,
             DBLeaderboardEntry.game_mode,
             func.max(DBLeaderboardEntry.score).label('best_score')
         )
-        .group_by(DBLeaderboardEntry.username, DBLeaderboardEntry.game_mode)
+        .group_by(DBLeaderboardEntry.username, DBLeaderboardEntry.user_id, DBLeaderboardEntry.game_mode)
     )
     
     # Group filtering
     if group_id and group_id != "all":
-        user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        best_scores_subq = best_scores_subq.where(DBLeaderboardEntry.username.in_(user_subquery))
+        best_scores_subq = (
+            best_scores_subq
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
     
     best_scores_subq = best_scores_subq.subquery()
     
     # Query with ranking and limit per partition
     query = select(
         best_scores_subq.c.username,
+        best_scores_subq.c.user_id,
         best_scores_subq.c.game_mode,
         best_scores_subq.c.best_score,
         func.rank().over(
@@ -290,18 +310,20 @@ async def get_top_n_per_mode(
     
     # Filter to top N per mode
     entries_by_mode: Dict[str, List] = {}
+    top_entries = []
     for e in all_entries:
         if e.rank <= limit:
             if e.game_mode not in entries_by_mode:
                 entries_by_mode[e.game_mode] = []
             entries_by_mode[e.game_mode].append(e)
+            top_entries.append(e)
     
     # Fetch user groups
-    usernames = list({e.username for e in all_entries if e.rank <= limit})
+    user_ids = list({e.user_id for e in top_entries if e.user_id})
     users_map: Dict[str, List[Dict[str, str]]] = {}
     
-    if usernames:
-        user_query = select(DBUser).where(DBUser.username.in_(usernames)).options(selectinload(DBUser.groups))
+    if user_ids:
+        user_query = select(DBUser).where(DBUser.id.in_(user_ids)).options(selectinload(DBUser.groups))
         u_res = await db.execute(user_query)
         users = u_res.scalars().all()
         for u in users:
@@ -329,28 +351,33 @@ async def get_overall_rankings(
 ):
     """Get cross-game mode overall rankings based on average rank"""
     from sqlalchemy import func
-    from sqlalchemy.orm import selectinload
     
-    # Get best scores per user per mode with ranks
+    # Get best scores per user per mode
     best_scores_subq = (
         select(
             DBLeaderboardEntry.username,
+            DBLeaderboardEntry.user_id,
             DBLeaderboardEntry.game_mode,
             func.max(DBLeaderboardEntry.score).label('best_score')
         )
-        .group_by(DBLeaderboardEntry.username, DBLeaderboardEntry.game_mode)
+        .group_by(DBLeaderboardEntry.username, DBLeaderboardEntry.user_id, DBLeaderboardEntry.game_mode)
     )
     
     # Group filtering
     if group_id and group_id != "all":
-        user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        best_scores_subq = best_scores_subq.where(DBLeaderboardEntry.username.in_(user_subquery))
+        best_scores_subq = (
+            best_scores_subq
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
     
     best_scores_subq = best_scores_subq.subquery()
     
     # Add ranks per game mode
     ranked_subq = select(
         best_scores_subq.c.username,
+        best_scores_subq.c.user_id,
         best_scores_subq.c.game_mode,
         best_scores_subq.c.best_score,
         func.rank().over(
@@ -359,7 +386,7 @@ async def get_overall_rankings(
         ).label('game_rank')
     ).subquery()
     
-    # Aggregate by user in Python to include mode ranks
+    # Aggregate by user in Python
     query = select(ranked_subq)
     
     result = await db.execute(query)
@@ -367,9 +394,13 @@ async def get_overall_rankings(
     
     # Process in Python
     user_stats = {}
+    user_id_map = {} # Map username to user_id for group fetching
     
     for row in raw_entries:
         uname = row.username
+        if row.user_id:
+            user_id_map[uname] = row.user_id
+            
         if uname not in user_stats:
             user_stats[uname] = {
                 "username": uname,
@@ -401,11 +432,11 @@ async def get_overall_rankings(
     final_list.sort(key=lambda x: x["avg_rank"])
     
     # Fetch user groups
-    usernames = list(user_stats.keys())
+    user_ids = list(user_id_map.values())
     users_map: Dict[str, List[Dict[str, str]]] = {}
     
-    if usernames:
-        user_query = select(DBUser).where(DBUser.username.in_(usernames)).options(selectinload(DBUser.groups))
+    if user_ids:
+        user_query = select(DBUser).where(DBUser.id.in_(user_ids)).options(selectinload(DBUser.groups))
         u_res = await db.execute(user_query)
         users = u_res.scalars().all()
         for u in users:
@@ -433,15 +464,13 @@ async def get_stats_summary(
     from sqlalchemy import func
     from datetime import datetime, timedelta
     
-    # Base query for counts
+    # Base queries
     query_total = select(func.count(DBLeaderboardEntry.id))
-    query_users = select(func.count(func.distinct(DBLeaderboardEntry.username)))
+    query_users = select(func.count(func.distinct(DBLeaderboardEntry.user_id)))
     
-    # Recent activity (last 24h)
     yesterday = datetime.now() - timedelta(days=1)
     query_recent = select(func.count(DBLeaderboardEntry.id)).where(DBLeaderboardEntry.timestamp >= yesterday)
     
-    # Most popular mode
     query_mode = (
         select(DBLeaderboardEntry.game_mode, func.count(DBLeaderboardEntry.id).label('count'))
         .group_by(DBLeaderboardEntry.game_mode)
@@ -451,12 +480,49 @@ async def get_stats_summary(
     
     # Apply group filtering
     if group_id and group_id != "all":
-        user_subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        # We need to apply this filter to all queries
-        query_total = query_total.where(DBLeaderboardEntry.username.in_(user_subquery))
-        query_users = query_users.where(DBLeaderboardEntry.username.in_(user_subquery))
-        query_recent = query_recent.where(DBLeaderboardEntry.username.in_(user_subquery))
-        query_mode = query_mode.where(DBLeaderboardEntry.username.in_(user_subquery))
+        # Create a common join condition or just apply to each
+        # For counts, we can join
+        join_clause = (
+            select(DBLeaderboardEntry.id)
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
+        # Using EXISTS or IN for cleaner generated SQL often, but direct join on count works if distinct is careful.
+        # Actually simpler: join directly in the select if simple count.
+        
+        # Rewrite to use standard join approach for filtering
+        query_total = (
+            select(func.count(DBLeaderboardEntry.id))
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
+        
+        query_users = (
+            select(func.count(func.distinct(DBLeaderboardEntry.user_id)))
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
+        
+        query_recent = (
+            select(func.count(DBLeaderboardEntry.id))
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+            .where(DBLeaderboardEntry.timestamp >= yesterday)
+        )
+        
+        query_mode = (
+            select(DBLeaderboardEntry.game_mode, func.count(DBLeaderboardEntry.id).label('count'))
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+            .group_by(DBLeaderboardEntry.game_mode)
+            .order_by(func.count(DBLeaderboardEntry.id).desc())
+            .limit(1)
+        )
 
     # Execute
     total_games = (await db.execute(query_total)).scalar() or 0
@@ -480,20 +546,16 @@ async def get_score_distribution(
     db: AsyncSession = Depends(get_db)
 ):
     """Get score distribution buckets for a specific game mode"""
-    from sqlalchemy import func, case
-    
-    # We'll create dynamic buckets based on max score or fixed ranges?
-    # For simplicity, let's just get all scores and bucket them in python for now, 
-    # or use a simple width_bucket if we were on postgres exclusive but let's be adaptable.
-    # Actually, fetching all scores might be heavy. Let's start with a decent approximation:
-    # Get min/max/avg and then some histogram data if possible.
-    # Postgres has `width_bucket`.
     
     query = select(DBLeaderboardEntry.score).where(DBLeaderboardEntry.game_mode == gameMode)
     
     if group_id and group_id != "all":
-        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        query = query.where(DBLeaderboardEntry.username.in_(subquery))
+        query = (
+            query
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
         
     result = await db.execute(query)
     scores = result.scalars().all()
@@ -557,8 +619,12 @@ async def get_activity_trends(
     )
     
     if group_id and group_id != "all":
-        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        query = query.where(DBLeaderboardEntry.username.in_(subquery))
+        query = (
+            query
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
         
     result = await db.execute(query)
     data = result.all()
@@ -606,8 +672,12 @@ async def get_activity_by_mode(
     )
     
     if group_id and group_id != "all":
-        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        query = query.where(DBLeaderboardEntry.username.in_(subquery))
+        query = (
+            query
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
         
     result = await db.execute(query)
     rows = result.all()
@@ -619,9 +689,6 @@ async def get_activity_by_mode(
     for i in range(days + 1):
         d = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
         data_map[d] = {"date": d}
-        # We don't know all modes yet effectively, but we can fill them in as we see them or just rely on recharts handling missing keys (it does, usually treats as undefined/0 if handled)
-        # But to be safe let's pre-fill common modes if we want, or just let them be dynamic.
-        # Recharts works best if keys exist.
         for mode in GameMode:
             data_map[d][mode.value] = 0
 
@@ -656,8 +723,12 @@ async def get_activity_by_user(
     )
     
     if group_id and group_id != "all":
-        subquery = select(DBUser.username).join(DBUser.groups).where(DBGroup.id == group_id)
-        count_query = count_query.where(DBLeaderboardEntry.username.in_(subquery))
+        count_query = (
+            count_query
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
         
     top_users_res = await db.execute(count_query)
     top_users = [row.username for row in top_users_res.all()]
@@ -679,6 +750,17 @@ async def get_activity_by_user(
         .group_by(date_col, DBLeaderboardEntry.username)
         .order_by(date_col)
     )
+    
+    # Note: For the detailed data, we re-apply group filter if strictly necessary, 
+    # but filtering by the Top Users list (who were already filtered by group) acts as a secondary filter.
+    # However, to be rigorously correct if a user is in multiple groups, we should filter again.
+    if group_id and group_id != "all":
+        query = (
+            query
+            .join(DBLeaderboardEntry.user)
+            .join(DBUser.groups)
+            .where(DBGroup.id == group_id)
+        )
     
     result = await db.execute(query)
     rows = result.all()

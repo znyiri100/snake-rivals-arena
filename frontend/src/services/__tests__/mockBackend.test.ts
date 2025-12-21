@@ -98,33 +98,4 @@ describe('mockBackend', () => {
       await expect(mockBackend.submitScore(1000, 'walls')).rejects.toThrow();
     });
   });
-
-  describe('Active Sessions', () => {
-    it('should return active game sessions', async () => {
-      const sessions = await mockBackend.getActiveSessions();
-      expect(Array.isArray(sessions)).toBe(true);
-      expect(sessions.length).toBeGreaterThan(0);
-    });
-
-    it('should get session by id', async () => {
-      const sessions = await mockBackend.getActiveSessions();
-      const firstSession = sessions[0];
-
-      const session = await mockBackend.getSessionById(firstSession.id);
-      expect(session).toBeDefined();
-      expect(session?.id).toBe(firstSession.id);
-    });
-
-    it('should return null for non-existent session', async () => {
-      const session = await mockBackend.getSessionById('nonexistent');
-      expect(session).toBeNull();
-    });
-
-    it('should update session score', () => {
-      const sessionId = '1';
-      mockBackend.updateSessionScore(sessionId, 1500);
-      // This is a synchronous operation, we can't directly test it without exposing internal state
-      // In a real app, we'd verify through getSessionById
-    });
-  });
 });

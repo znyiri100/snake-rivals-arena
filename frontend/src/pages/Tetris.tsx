@@ -139,6 +139,8 @@ const Tetris = () => {
                             api.submitScore(newState.score, 'tetris')
                                 .then(() => toast.success('Score submitted!'))
                                 .catch(() => toast.error('Failed to submit score'));
+                        } else {
+                            toast.error('Score not saved. Please log in.');
                         }
                     }
 

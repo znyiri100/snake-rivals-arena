@@ -116,7 +116,14 @@ const SpaceInvaders = () => {
                         toast.error('Game Over! Aliens reached Earth!');
                     }
                     if (user) {
-                        api.submitScore(newState.score, 'space_invaders');
+                        api.submitScore(newState.score, 'space_invaders')
+                            .then(() => toast.success('Score saved!'))
+                            .catch((e) => {
+                                console.error(e);
+                                toast.error('Failed to save score');
+                            });
+                    } else {
+                        toast.error('Score not saved. Please log in.');
                     }
                 }
 
@@ -125,7 +132,14 @@ const SpaceInvaders = () => {
                     setIsPlaying(false);
                     toast.success('Victory! All aliens destroyed!');
                     if (user) {
-                        api.submitScore(newState.score, 'space_invaders');
+                        api.submitScore(newState.score, 'space_invaders')
+                            .then(() => toast.success('Score saved!'))
+                            .catch((e) => {
+                                console.error(e);
+                                toast.error('Failed to save score');
+                            });
+                    } else {
+                        toast.error('Score not saved. Please log in.');
                     }
                 }
 

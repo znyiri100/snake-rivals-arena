@@ -1,62 +1,55 @@
-# 🐍 Snake Rivals Arena
+# 🕹️ Arcade Arena
 
-A modern, multiplayer Snake game with real-time leaderboards and spectator mode. Built with React, FastAPI, and PostgreSQL.
+A modern, full-stack gaming platform featuring classic arcade games with real-time leaderboards, community groups, and a robust user system. Built with React, FastAPI, and PostgreSQL.
 
-![Snake Rivals Arena](https://img.shields.io/badge/status-active-success.svg)
+![Status](https://img.shields.io/badge/status-active-success.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-## 🎮 Features
+## 🎮 Games
 
-- **Two Game Modes**
-  - 🚪 Pass-through walls: Snake wraps around the screen
-  - 🧱 Deadly walls: Hitting walls ends the game
+- **🐍 Snake**: Classic snake gameplay with wall-wrapping or deadly wall modes.
+- **💣 Minesweeper**: Test your logic and speed.
+- **👾 Space Invaders**: Defend against waves of aliens.
+- **🧱 Tetris**: Stack blocks and clear lines in this timeless puzzle.
 
-- **Multiplayer Features**
-  - 🏆 Real-time leaderboards
-  - 👀 Live spectator mode - watch other players
-  - 👤 User authentication and profiles
+## ✨ Key Features
 
-- **Modern Tech Stack**
-  - ⚛️ React + TypeScript frontend
-  - 🚀 FastAPI backend
-  - 🐘 PostgreSQL database
-  - 🐳 Docker containerized
+- **👥 Groups System**
+  - Create or join community groups (e.g., "Office", "Friends").
+  - Compete on leaderboards specific to your group.
+  - Multi-tenancy support: Your username can be unique *per group*.
+
+- **🏆 Leaderboards**
+  - **Overall Rankings**: See who rules the arcade across all games.
+  - **Best Per User**: Track your personal bests.
+  - **Top N**: View top players by game mode and group.
+
+- **🛠️ Modern Architecture**
+  - **Backend**: FastAPI (Python) serving REST APIs and static files.
+  - **Frontend**: React 18 + TypeScript with TanStack Query.
+  - **Database**: PostgreSQL (Production) / SQLite (Dev) with SQLAlchemy Async.
+  - **Deployment**: Docker containerized with multi-stage builds.
 
 ## 🚀 Quick Start
 
 ### Using Docker Compose (Recommended)
 
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/snake-rivals-arena.git
-cd snake-rivals-arena
-
 # Start the application
-docker compose up
+docker compose up --build
 
 # Access the app
 open http://localhost:8000
 ```
-
-### Using Remote Database
-
-To start the application using the remote production database:
-
-```bash
-DATABASE_URL="postgresql+asyncpg://snake_user.xsvwyiyhghmhsdugotcx:<PASSWORD>@aws-1-us-east-1.pooler.supabase.com:5432/snake_rivals" docker compose up -d --build app
-```
-
-### Local Development (Docker)
-- Frontend + Backend: http://localhost:8000
-- API Documentation: http://localhost:8000/api/docs
-- PostgreSQL: localhost:5432
 
 ### Local Development
 
 **Backend:**
 ```bash
 cd backend
+# Create virtual env and install dependencies
 uv sync
+# Run the server (auto-reloads on change)
 uv run uvicorn app.main:app --reload
 ```
 
@@ -67,33 +60,13 @@ npm install
 npm run dev
 ```
 
-## 📦 Deployment
-
-### Deploy to Render (Free Tier)
-
-1. Push your code to GitHub
-2. Sign up at [Render.com](https://render.com)
-3. Click "New +" → "Blueprint"
-4. Connect your repository
-5. Click "Apply"
-
-Render will automatically:
-- Create a PostgreSQL database
-- Build and deploy your app
-- Provide a live URL
-
-**Detailed guide:** See [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md)
-
-### Other Deployment Options
-
-- **Fly.io**: Best performance, global deployment
-- **Railway**: Easiest setup, auto-deploys
-- **Google Cloud Run**: Serverless, pay-per-use
-- **AWS ECS**: Enterprise-grade, full control
-
-See [deployment.md](./deployment.md) for detailed instructions.
-
 ## 🏗️ Architecture
+
+The project uses a **Unified App Container** model for deployment:
+
+1.  **Build Stage**: The React frontend is built into static assets.
+2.  **Run Stage**: The FastAPI backend mounts the static assets and serves them alongside the API.
+3.  **Database**: A separate PostgreSQL container handles data persistence.
 
 ```
 ┌─────────────────────────────────────┐
@@ -103,131 +76,81 @@ See [deployment.md](./deployment.md) for detailed instructions.
 │  │   Frontend   │  │   Backend    │ │
 │  │  (Static)    │  │   (API)      │ │
 │  └──────────────┘  └──────────────┘ │
-│         Port 8000                    │
+│         Port 8000                   │
 └─────────────────────────────────────┘
               │
               ▼
 ┌─────────────────────────────────────┐
 │      PostgreSQL Database            │
-│         Port 5432                    │
+│         Port 5432                   │
 └─────────────────────────────────────┘
 ```
-
-**Key Design:**
-- Multi-stage Docker build
-- FastAPI serves both API and static files
-- Single port for all traffic
-- Separate database container
 
 ## 🛠️ Tech Stack
 
 **Frontend:**
-- React 18 + TypeScript
-- Vite for build tooling
-- Tailwind CSS + shadcn/ui
-- React Router for navigation
-- TanStack Query for data fetching
+- **Core**: React 18, TypeScript, Vite
+- **Styling**: Tailwind CSS, shadcn/ui
+- **State/Data**: TanStack Query
+- **Routing**: React Router
 
 **Backend:**
-- FastAPI (Python)
-- SQLAlchemy ORM
-- AsyncPG for PostgreSQL
-- Pydantic for validation
-- UV for dependency management
+- **Core**: FastAPI (Python 3.12)
+- **Database**: SQLAlchemy (Async), Pydantic
+- **Manager**: UV
 
-**Database:**
+**Infrastructure:**
+- Docker & Docker Compose
 - PostgreSQL 15
-- Async database operations
-- Custom ENUM types for game modes
-
-**DevOps:**
-- Docker + Docker Compose
-- Multi-stage builds
-- Health checks
-- Volume persistence
 
 ## 📁 Project Structure
 
 ```
-snake-rivals-arena/
+arcade-arena/
 ├── frontend/              # React application
 │   ├── src/
-│   │   ├── components/   # UI components
-│   │   ├── services/     # API client
-│   │   └── pages/        # Route pages
-│   ├── package.json
-│   └── vite.config.ts
+│   │   ├── components/   # Game boards & UI components
+│   │   ├── services/     # API client (api.ts)
+│   │   └── pages/        # Game pages & Dashboard
+│   └── ...
 ├── backend/              # FastAPI application
 │   ├── app/
-│   │   ├── routers/     # API endpoints
-│   │   ├── models.py    # Database models
-│   │   ├── db.py        # Database config
+│   │   ├── routers/     # API endpoints (auth, leaderboard, etc.)
+│   │   ├── sql_models.py # Database schema (User, Group, LeaderboardEntry)
 │   │   └── main.py      # App entry point
-│   ├── pyproject.toml
-│   └── uv.lock
-├── Dockerfile            # Multi-stage build
-├── docker-compose.yml    # Local development
-├── render.yaml           # Render deployment config
+│   ├── tests/           # Unit tests
+│   └── ...
+├── Dockerfile            # Multi-stage build definition
+├── docker-compose.yml    # Local development orchestration
 └── README.md
 ```
 
 ## 🎯 API Endpoints
 
 **Authentication:**
-- `POST /api/auth/register` - Create new user
-- `POST /api/auth/login` - User login
-- `POST /api/auth/logout` - User logout
+- `POST /api/auth/signup` - Register a new user (and optionally create/join groups).
+- `POST /api/auth/login` - User login (returns mock token).
+- `GET /api/auth/me` - Get current user details.
+
+**Groups:**
+- `GET /api/auth/groups` - List available groups.
 
 **Leaderboard:**
-- `GET /api/leaderboard?gameMode={mode}` - Get top scores
-- `POST /api/leaderboard` - Submit new score
-
-**Sessions:**
-- `GET /api/sessions` - Get active game sessions
-- `POST /api/sessions` - Create new session
-- `PUT /api/sessions/{id}` - Update session
-
-**Documentation:**
-- `GET /api/docs` - Interactive API docs (Swagger UI)
-- `GET /api/redoc` - Alternative API docs (ReDoc)
-
-## 🧪 Testing
-
-**Backend Tests:**
-```bash
-cd backend
-uv run pytest tests/              # Unit tests
-uv run pytest tests_integration/  # Integration tests
-```
-
-**Frontend Tests:**
-```bash
-cd frontend
-npm test
-```
+- `GET /api/leaderboard` - Get scores (filterable by game mode and group).
+- `POST /api/leaderboard` - Submit a new score.
+- `GET /api/leaderboard/rankings/overall` - Get combined rankings.
 
 ## 🔧 Configuration
 
-### Environment Variables
+**Environment Variables:**
+- `DATABASE_URL`: Connection string for the database.
+  - Example: `postgresql+asyncpg://user:pass@host:5432/db_name`
 
-**Backend:**
-- `DATABASE_URL`: PostgreSQL connection string
-  - Format: `postgresql+asyncpg://user:password@host:port/database`
-  - Default: `postgresql+asyncpg://user:password@db:5432/snake_rivals`
-
-**Database:**
-- `POSTGRES_USER`: Database user (default: `user`)
-- `POSTGRES_PASSWORD`: Database password (default: `password`)
-- `POSTGRES_DB`: Database name (default: `snake_rivals`)
-
-### Ports
-
-- `8000`: Application (frontend + API)
-- `5432`: PostgreSQL (for debugging)
+**Ports:**
+- `8000`: Main Application (Frontend + API)
+- `5432`: PostgreSQL (if running locally via Docker)
 
 ## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
@@ -237,87 +160,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- Built with [FastAPI](https://fastapi.tiangolo.com/)
-- UI components from [shadcn/ui](https://ui.shadcn.com/)
-- Icons from [Lucide](https://lucide.dev/)
-
-## 📧 Contact
-
-Your Name - [@yourusername](https://twitter.com/yourusername)
-
-Project Link: [https://github.com/YOUR_USERNAME/snake-rivals-arena](https://github.com/YOUR_USERNAME/snake-rivals-arena)
-
----
-
-Made with ❤️ and 🐍
-
-## 🔄 Applying Changes & Troubleshooting
-
-### To make code changes effective:
-
-```bash
-docker compose up --build -d
-```
-This command rebuilds the frontend assets (packaging new logic) and restarts the containers. The changes should now be effective in your browser. You may need to refresh the page.
-
-### If port forwarding fails:
-
-```bash
-curl -v http://0.0.0.0:8000
-```
-This command reestablishes port forwarding if it has been interrupted.
-
-### ⚡ Faster Development (Recommended)
-
-To avoid rebuilding Docker for every frontend change, run the frontend locally:
-
-1. Ensure the backend is running in Docker (on port 8000).
-2. Open a new terminal and run:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The app will start at `http://localhost:8080`. Changes will be reflected instantly (HMR).
-API requests will be proxied to the backend automatically.
-
-### 🐍 Local Backend Development
-
-If you also want to run the backend locally (e.g. for debugging Python code):
-
-1. **Database**: You need a running PostgreSQL database.
-   - Option A: Use the Docker database (easiest):
-     ```bash
-     docker compose up db -d
-     ```
-     This makes Postgres available at `localhost:5432`.
-
-   - Option B: Use the remote database:
-     Set `DATABASE_URL` to your remote connection string.
-
-2. **Run Backend**:
-   Open a new terminal:
-   ```bash
-   cd backend
-   # Install dependencies
-   uv sync
-   # Run the server (auto-reloads on change)
-   # If using local docker DB, separate credentials might be needed or default 'user/password' works if defined in docker-compose
-   # DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/snake_rivals"
-   DATABASE_URL="postgresql+asyncpg://snake_user.xsvwyiyhghmhsdugotcx:<PASSWORD>@aws-1-us-east-1.pooler.supabase.com:5432/snake_rivals" uv run uvicorn app.main:app --reload --port 8000
-   ```
-   
-   *Note: If using remote DB, replace the DATABASE_URL with the remote one.*
-
-### Start with Remote Database (Docker)
-
-To start the dokerized application:
-```bash
-DATABASE_URL="postgresql+asyncpg://snake_user.xsvwyiyhghmhsdugotcx:<PASSWORD>@aws-1-us-east-1.pooler.supabase.com:5432/snake_rivals" docker compose up -d --build app
-```
+This project is licensed under the MIT License.
