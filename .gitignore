@@ -46,3 +46,7 @@ coverage/
 
 # Docker
 .dockerignore
+
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
