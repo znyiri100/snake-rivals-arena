@@ -23,6 +23,38 @@ Once the server is running, visit:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
+## Running JupyterLab
+
+If you want to run the notebook server (JupyterLab) for interactive notebooks, start it from the `backend` directory using the project's virtual environment.
+
+- Activate the venv (recommended):
+
+```bash
+source .venv/bin/activate
+```
+
+- Start JupyterLab (opens in your browser):
+
+```bash
+python -m jupyter lab
+```
+
+Or run without activating the venv by using the full python path:
+
+```bash
+.venv/bin/python -m jupyter lab --no-browser --port=8888
+```
+
+If you're accessing the server remotely, bind to all interfaces and set a token or disable token (not recommended for public servers):
+
+```bash
+.venv/bin/python -m jupyter lab --ip=0.0.0.0 --port=8888 --no-browser
+```
+
+Notes:
+- If you plan to use interactive Matplotlib widgets (`%matplotlib widget`), ensure `ipympl` is installed in the same environment: `uv add ipympl` or `pip install ipympl`.
+- On remote hosts open the printed URL (contains a token) in your browser or configure SSH port forwarding.
+
 ## Data Model
 
 See the **Entity-Relationship (ER) Diagram** in [`../docs/ER_DIAGRAM.svg`](../docs/ER_DIAGRAM.svg) and [`../docs/ER_DIAGRAM.mmd`](../docs/ER_DIAGRAM.mmd) (Mermaid format).
