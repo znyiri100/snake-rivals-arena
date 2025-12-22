@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api, type User, type Group, type RankedScore, type UserGameModeRank, type OverallRanking } from '@/services/api';
-import { Trophy, Medal, Users, TrendingUp, Activity } from 'lucide-react';
+import { Trophy, Medal, Users, TrendingUp, Activity, Check, ChevronsUpDown } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
@@ -24,6 +24,31 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScoreDashboard } from './ScoreDashboard';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+
+const PLAYER_COLORS = [
+    '#2563eb', // blue-600
+    '#dc2626', // red-600
+    '#16a34a', // green-600
+    '#d97706', // amber-600
+    '#9333ea', // purple-600
+    '#0891b2', // cyan-600
+    '#ea580c', // orange-600
+];
 
 interface ScoreReportsProps {
     user?: User | null;
@@ -43,10 +68,10 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     const [reportType, setReportType] = useState<ReportType>('dashboard');
     const [gameMode, setGameMode] = useState<GameModeFilter>('all');
     const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
-    const [selectedPlayer, setSelectedPlayer] = useState<string>('all');
+    const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
     const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
     const [topNLimit, setTopNLimit] = useState<number>(10);
-    const [sortBy, setSortBy] = useState<'rank' | 'date'>('date');
+    const [sortBy, setSortBy] = useState<'rank' | 'date'>('rank');
     const [isLoading, setIsLoading] = useState(true);
 
     // Data states
@@ -80,13 +105,20 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                         setAllScores(scores);
                         break;
                     case 'best-per-user':
-                        // Fetch both best scores (for stats/charts) and all scores (for history list)
-                        const [best, all] = await Promise.all([
+                        // Fetch best scores, all scores, and overall rankings (to find the top player)
+                        const [best, all, overallData] = await Promise.all([
                             api.getBestPerUserPerMode(mode, groupId),
-                            api.getAllScoresRanked(mode, groupId, sortBy)
+                            api.getAllScoresRanked(mode, groupId, sortBy),
+                            api.getOverallRankings(groupId)
                         ]);
                         setBestPerUser(best);
                         setAllScores(all);
+                        setOverallRankings(overallData);
+
+                        // Default to top player if none selected and rankings are available
+                        if (selectedPlayers.length === 0 && overallData.length > 0) {
+                            setSelectedPlayers([overallData[0].username]);
+                        }
                         break;
                     case 'top-n':
                         const topN = await api.getTopNPerMode(topNLimit, groupId);
@@ -151,58 +183,66 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     );
 
     const renderBestPerUser = () => {
-        // Filter by selected player if set
-        const filteredBestData = selectedPlayer === 'all'
+        // Filter by selected players if list is not empty
+        const filteredBestData = selectedPlayers.length === 0
             ? bestPerUser
-            : bestPerUser.filter(entry => entry.username === selectedPlayer);
+            : bestPerUser.filter(entry => selectedPlayers.includes(entry.username));
 
-        const filteredHistoryData = selectedPlayer === 'all'
+        const filteredHistoryData = selectedPlayers.length === 0
             ? allScores
-            : allScores.filter(entry => entry.username === selectedPlayer);
+            : allScores.filter(entry => selectedPlayers.includes(entry.username));
+
+        // Average rank for display (averaged across selected players)
+        const selectedOverallStats = overallRankings.filter(r => selectedPlayers.includes(r.username));
+        const avgRankDisplay = selectedOverallStats.length === 1
+            ? selectedOverallStats[0].avg_rank
+            : (selectedOverallStats.reduce((sum, r) => sum + r.avg_rank, 0) / (selectedOverallStats.length || 1)).toFixed(2);
+
+        // Derive Chart Data for comparison
+        // We need a single array where each object is { mode: string, label: string, [player_username]: rank }
+        const chartData = Object.keys(GAME_MODE_LABELS).map(mode => {
+            const dataPoint: any = {
+                mode: mode,
+                label: mode.replace('_', ' ').toUpperCase(),
+            };
+
+            selectedPlayers.forEach(username => {
+                const entry = bestPerUser.find(d => d.username === username && d.game_mode === mode);
+                const rank = entry ? entry.rank : 0;
+                // Invert rank for visualization (5 ranks domain)
+                dataPoint[`rank_${username}`] = rank === 0 ? 0 : Math.max(0.5, 5 + 1 - rank);
+                dataPoint[`original_rank_${username}`] = rank;
+            });
+
+            return dataPoint;
+        });
 
         // Sort logic for history
         const sortData = (data: RankedScore[]) => {
             if (sortBy === 'date') {
                 return [...data].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
             }
-            return data; // Previously sorted by rank from backend if sortBy != date
+            return data;
         };
 
         const sortedHistory = sortData(filteredHistoryData);
 
-        // Derive Chart Data from Best Scores
-        // For Bar Chart: We want Best Score per Mode.
-        // For Radar: We want Rank per Mode.
-        const chartData = Object.keys(GAME_MODE_LABELS).map(mode => {
-            const entry = filteredBestData.find(d => d.game_mode === mode);
-            // Rank: Lower is better. For chart we might want inverted or raw.
-            // Stacked Bar? If multiple players (all selected), maybe stack by user?
-            // "Stacking" implies summing usually, or grouping.
-            // Recharts <Bar stackId="a" /> stacks them.
-            // But we have filteredBestData which might have multiple users for 'all'.
-            // If Single Player: Just 1 bar per mode.
-
-            // If 'all' players, we can't easily show a bar chart of 50 users. 
-            // So we'll limit Chart to when a Single Player is selected, OR just show top stats?
-            // The Radar code currently only shows if `selectedPlayer !== 'all'`.
-            // Let's keep that restriction for the charts for clarity unless requested.
-            return {
-                mode: mode,
-                label: GAME_MODE_LABELS[mode],
-                bestScore: entry ? entry.best_score : 0,
-                rank: entry ? entry.rank : 0
-            };
-        });
-
         return (
             <div className="space-y-6">
-                {/* Charts Area - Only for specific player for now to be cleanly readable */}
-                {selectedPlayer !== 'all' && (
+                {/* Charts Area */}
+                {selectedPlayers.length > 0 && (
                     <Card className="p-6 bg-card/50 border-primary/20 mb-6">
+                        <div className="text-center mb-8">
+                            <h3 className="text-2xl font-bold text-foreground">
+                                {selectedPlayers.length === 1 ? `Performance Profile: ${selectedPlayers[0]}` : 'Player Comparison'}
+                            </h3>
+                            <p className="text-muted-foreground font-semibold">Avg Rank: {avgRankDisplay} (Outer is Better #1)</p>
+                        </div>
+
                         <div className="flex items-center justify-between mb-4 gap-4">
-                            <h3 className="text-lg font-bold flex items-center gap-2 text-foreground">
-                                <Activity className="w-5 h-5 text-primary" />
-                                Player Performance
+                            <h3 className="text-sm font-bold flex items-center gap-2 text-muted-foreground">
+                                <Activity className="w-4 h-4 text-primary" />
+                                SKILL ANALYSIS
                             </h3>
                             <div className="flex items-center space-x-2 bg-muted/50 p-1 rounded-lg border border-border">
                                 <Button
@@ -224,48 +264,59 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                             </div>
                         </div>
 
-                        <div className="h-[300px] w-full">
+                        <div className="h-[650px] w-full mt-4">
                             <ResponsiveContainer width="100%" height="100%">
                                 {playerChartType === 'radar' ? (
-                                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={
-                                        chartData.map(d => {
-                                            const MAX_DOMAIN = Math.max(10, ...filteredBestData.map(x => x.rank));
-                                            return {
-                                                ...d,
-                                                inverseRank: d.rank === 0 ? 0 : (MAX_DOMAIN + 1 - d.rank),
-                                                fullMark: MAX_DOMAIN
-                                            };
-                                        })
-                                    }>
-                                        <PolarGrid stroke="#333" />
-                                        <PolarAngleAxis dataKey="label" tick={{ fill: '#888', fontSize: 12 }} />
-                                        <PolarRadiusAxis angle={30} domain={[0, 'auto']} tick={false} axisLine={false} />
-                                        <Radar
-                                            name={selectedPlayer}
-                                            dataKey="inverseRank"
-                                            stroke="#8884d8"
-                                            fill="#8884d8"
-                                            fillOpacity={0.6}
+                                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
+                                        <PolarGrid gridType="circle" stroke="#444" />
+                                        <PolarAngleAxis dataKey="label" tick={{ fill: '#aaa', fontSize: 16, fontWeight: 'bold' }} />
+                                        <PolarRadiusAxis
+                                            angle={0}
+                                            domain={[0, 5]}
+                                            tickCount={6}
+                                            tickFormatter={(val) => val > 0 ? (6 - val).toString() : ''}
+                                            tick={{ fill: '#666', fontSize: 12 }}
+                                            axisLine={false}
                                         />
+                                        {selectedPlayers.map((username, index) => (
+                                            <Radar
+                                                key={username}
+                                                name={username}
+                                                dataKey={`rank_${username}`}
+                                                stroke={PLAYER_COLORS[index % PLAYER_COLORS.length]}
+                                                fill={PLAYER_COLORS[index % PLAYER_COLORS.length]}
+                                                fillOpacity={0.2}
+                                                strokeWidth={3}
+                                            />
+                                        ))}
                                         <Tooltip
                                             contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', color: '#fff' }}
-                                            formatter={(value: number, name: string, props: any) => {
-                                                const rank = props.payload.rank;
-                                                return rank === 0 ? ['Not Ranked', 'Rank'] : [`#${rank}`, 'Rank'];
+                                            formatter={(value: any, name: string, props: any) => {
+                                                const originalRank = props.payload[`original_rank_${name}`];
+                                                return originalRank === 0 ? ['Not Ranked', name] : [`#${originalRank}`, name];
                                             }}
                                         />
+                                        <Legend verticalAlign="bottom" height={36} />
                                     </RadarChart>
                                 ) : (
                                     <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                                        <XAxis dataKey="label" stroke="#888" tick={{ fill: '#888', fontSize: 12 }} />
-                                        <YAxis stroke="#888" tick={{ fill: '#888', fontSize: 12 }} />
+                                        <XAxis dataKey="label" stroke="#888" tick={{ fill: '#888', fontSize: 14 }} />
+                                        <YAxis stroke="#888" tick={{ fill: '#888', fontSize: 14 }} />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', color: '#fff' }}
                                             cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
-                                            formatter={(value: number) => [value.toLocaleString(), 'Best Score']}
                                         />
-                                        <Bar dataKey="bestScore" name="Best Score" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                                        <Legend />
+                                        {selectedPlayers.map((username, index) => (
+                                            <Bar
+                                                key={username}
+                                                dataKey={`original_rank_${username}`}
+                                                name={username}
+                                                fill={PLAYER_COLORS[index % PLAYER_COLORS.length]}
+                                                radius={[4, 4, 0, 0]}
+                                            />
+                                        ))}
                                     </BarChart>
                                 )}
                             </ResponsiveContainer>
@@ -287,13 +338,11 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                         <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
                             {sortedHistory.map((entry) => (
                                 <div
-                                    key={entry.id} // Use unique ID from allScores
+                                    key={entry.id}
                                     className="flex items-center justify-between p-3 bg-muted/50 rounded border border-border hover:border-primary/50 transition-colors"
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="w-12 text-center font-bold">
-                                            {/* Rank in history is usually the 'match rank' (rank of that specific score today). 
-                                                If backend returns 'rank' in getAllScoresRanked, it's the rank of that score in the DB. */}
                                             {getRankIcon(entry.rank) || `#${entry.rank}`}
                                         </div>
                                         <div>
@@ -304,8 +353,6 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                                 </Badge>
                                             </div>
                                             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                {/* games_played is not in RankedScore, only in UserGameModeRank. 
-                                                    We can omit it or calculate it if needed. For history list, timestamp is more important. */}
                                                 <span>{new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                                             </div>
                                         </div>
@@ -516,157 +563,185 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
 
     return (
         <Card className="bg-card/90 border-border p-6">
-            {/* Header with controls */}
+            {/* Header with report type buttons */}
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                 <h2 className="text-2xl font-bold text-primary neon-text flex items-center gap-2">
                     <TrendingUp className="w-6 h-6" />
                     SCORE REPORTS
                 </h2>
 
-                <div className="flex flex-wrap items-center gap-3">
-                    {/* Group selector */}
-                    <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                        <SelectTrigger className="w-[140px] h-9 text-xs bg-muted/50 border-border">
-                            <div className="flex items-center gap-2">
-                                <Users className="w-3 h-3" />
-                                <SelectValue placeholder="Select Group" />
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Groups</SelectItem>
-                            {availableGroups.map(group => (
-                                <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-
-                    {/* Game mode filter (for applicable reports) */}
-                    {(reportType === 'all-scores' || reportType === 'best-per-user') && (
-                        <Select value={gameMode} onValueChange={(v) => setGameMode(v as GameModeFilter)}>
-                            <SelectTrigger className="w-[160px] h-9 text-xs bg-muted/50 border-border">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Games</SelectItem>
-                                <SelectItem value="snake">🐍 Snake</SelectItem>
-                                <SelectItem value="minesweeper">💣 Minesweeper</SelectItem>
-                                <SelectItem value="space_invaders">🚀 Space Invaders</SelectItem>
-                                <SelectItem value="tetris">🟦 Tetris</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    )}
-
-                    {/* Player selector for Best Per User (Player) report */}
-                    {reportType === 'best-per-user' && (
-                        <Select value={selectedPlayer} onValueChange={setSelectedPlayer}>
-                            <SelectTrigger className="w-[140px] h-9 text-xs bg-muted/50 border-border">
-                                <div className="flex items-center gap-2">
-                                    <Users className="w-3 h-3" />
-                                    <SelectValue placeholder="All Players" />
-                                </div>
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Players</SelectItem>
-                                {/* Derive unique users from bestPerUser data for now */}
-                                {Array.from(new Set(bestPerUser.map(u => u.username))).sort().map(username => (
-                                    <SelectItem key={username} value={username}>{username}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-
-                    {/* Top N selector */}
-
-                    {reportType === 'top-n' && (
-                        <Select value={topNLimit.toString()} onValueChange={(v) => setTopNLimit(parseInt(v))}>
-                            <SelectTrigger className="w-[100px] h-9 text-xs bg-muted/50 border-border">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="5">Top 5</SelectItem>
-                                <SelectItem value="10">Top 10</SelectItem>
-                                <SelectItem value="20">Top 20</SelectItem>
-                                <SelectItem value="50">Top 50</SelectItem>
-                                <SelectItem value="999">All</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    )}
-
-
-
-                    {/* Sort selector for All Scores and Best Per User */}
-                    {(reportType === 'all-scores' || reportType === 'best-per-user') && (
-                        <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'rank' | 'date')}>
-                            <SelectTrigger className="w-[120px] h-9 text-xs bg-muted/50 border-border">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="rank">Sort by Rank</SelectItem>
-                                <SelectItem value="date">Sort by Date</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    )}
+                {/* Report type selector */}
+                <div className="flex flex-wrap gap-2">
+                    <Button
+                        variant={reportType === 'dashboard' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setReportType('dashboard')}
+                        className="neon-border"
+                    >
+                        Dashboard
+                    </Button>
+                    <Button
+                        variant={reportType === 'overall' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setReportType('overall')}
+                    >
+                        Overall Rankings
+                    </Button>
+                    <Button
+                        variant={reportType === 'top-n' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setReportType('top-n')}
+                    >
+                        Top Players
+                    </Button>
+                    <Button
+                        variant={reportType === 'best-per-user' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setReportType('best-per-user')}
+                    >
+                        Player
+                    </Button>
+                    <Button
+                        variant={reportType === 'all-scores' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setReportType('all-scores')}
+                    >
+                        All Scores
+                    </Button>
                 </div>
             </div>
 
-            {/* Report type selector */}
-            <div className="flex flex-wrap gap-2 mb-6">
-                <Button
-                    variant={reportType === 'dashboard' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setReportType('dashboard')}
-                    className="neon-border"
-                >
-                    Dashboard
-                </Button>
-                <Button
-                    variant={reportType === 'overall' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setReportType('overall')}
-                >
-                    Overall Rankings
-                </Button>
-                <Button
-                    variant={reportType === 'top-n' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setReportType('top-n')}
-                >
-                    Top Players
-                </Button>
-                <Button
-                    variant={reportType === 'best-per-user' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setReportType('best-per-user')}
-                >
-                    Player
-                </Button>
-                <Button
-                    variant={reportType === 'all-scores' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setReportType('all-scores')}
-                >
-                    All Scores
-                </Button>
+            {/* Filtering controls */}
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+                {/* Player multi-selector */}
+                {reportType === 'best-per-user' && (
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-[200px] justify-between h-9 text-xs bg-muted/50 border-border"
+                            >
+                                <div className="flex items-center gap-2 overflow-hidden overflow-ellipsis">
+                                    <Users className="w-3 h-3" />
+                                    {selectedPlayers.length === 0 ? "Select Players" :
+                                        selectedPlayers.length === 1 ? selectedPlayers[0] :
+                                            `${selectedPlayers.length} players selected`}
+                                </div>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[200px] p-0">
+                            <Command>
+                                <CommandInput placeholder="Search player..." />
+                                <CommandList>
+                                    <CommandEmpty>No player found.</CommandEmpty>
+                                    <CommandGroup title="Players">
+                                        {Array.from(new Set(bestPerUser.map(u => u.username))).sort().map((player) => (
+                                            <CommandItem
+                                                key={player}
+                                                onSelect={() => {
+                                                    setSelectedPlayers(prev =>
+                                                        prev.includes(player)
+                                                            ? prev.filter(p => p !== player)
+                                                            : [...prev, player]
+                                                    );
+                                                }}
+                                            >
+                                                <div className="flex items-center gap-2 w-full">
+                                                    <Checkbox
+                                                        checked={selectedPlayers.includes(player)}
+                                                        className="pointer-events-none"
+                                                    />
+                                                    <span>{player}</span>
+                                                </div>
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                )}
+
+                {/* Group selector */}
+                <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                    <SelectTrigger className="w-[140px] h-9 text-xs bg-muted/50 border-border">
+                        <div className="flex items-center gap-2">
+                            <Users className="w-3 h-3" />
+                            <SelectValue placeholder="Select Group" />
+                        </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Groups</SelectItem>
+                        {availableGroups.map(group => (
+                            <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                {/* Game mode filter (for applicable reports) */}
+                {(reportType === 'all-scores' || reportType === 'best-per-user') && (
+                    <Select value={gameMode} onValueChange={(v) => setGameMode(v as GameModeFilter)}>
+                        <SelectTrigger className="w-[160px] h-9 text-xs bg-muted/50 border-border">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Games</SelectItem>
+                            <SelectItem value="snake">🐍 Snake</SelectItem>
+                            <SelectItem value="minesweeper">💣 Minesweeper</SelectItem>
+                            <SelectItem value="space_invaders">🚀 Space Invaders</SelectItem>
+                            <SelectItem value="tetris">🟦 Tetris</SelectItem>
+                        </SelectContent>
+                    </Select>
+                )}
+
+                {/* Top N selector */}
+                {reportType === 'top-n' && (
+                    <Select value={topNLimit.toString()} onValueChange={(v) => setTopNLimit(parseInt(v))}>
+                        <SelectTrigger className="w-[100px] h-9 text-xs bg-muted/50 border-border">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="5">Top 5</SelectItem>
+                            <SelectItem value="10">Top 10</SelectItem>
+                            <SelectItem value="20">Top 20</SelectItem>
+                            <SelectItem value="50">Top 50</SelectItem>
+                            <SelectItem value="999">All</SelectItem>
+                        </SelectContent>
+                    </Select>
+                )}
+
+                {/* Sort selector for All Scores and Best Per User */}
+                {(reportType === 'all-scores' || reportType === 'best-per-user') && (
+                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'rank' | 'date')}>
+                        <SelectTrigger className="w-[120px] h-9 text-xs bg-muted/50 border-border">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="rank">Sort by Rank</SelectItem>
+                            <SelectItem value="date">Sort by Date</SelectItem>
+                        </SelectContent>
+                    </Select>
+                )}
             </div>
 
-            {/* Content */}
-            {
-                isLoading ? (
-                    <div className="space-y-2">
-                        {[...Array(5)].map((_, i) => (
-                            <div key={i} className="h-16 bg-muted animate-pulse rounded" />
-                        ))}
-                    </div>
-                ) : (
-                    <>
-                        {reportType === 'dashboard' && <ScoreDashboard groupId={selectedGroupId} />}
-                        {reportType === 'all-scores' && renderAllScores()}
-                        {reportType === 'best-per-user' && renderBestPerUser()}
-                        {reportType === 'top-n' && renderTopN()}
-                        {reportType === 'overall' && renderOverall()}
-                    </>
-                )
-            }
-        </Card >
+            {/* Content area */}
+            {isLoading ? (
+                <div className="space-y-2">
+                    {[...Array(5)].map((_, i) => (
+                        <div key={i} className="h-16 bg-muted animate-pulse rounded" />
+                    ))}
+                </div>
+            ) : (
+                <>
+                    {reportType === 'dashboard' && <ScoreDashboard groupId={selectedGroupId} />}
+                    {reportType === 'all-scores' && renderAllScores()}
+                    {reportType === 'best-per-user' && renderBestPerUser()}
+                    {reportType === 'top-n' && renderTopN()}
+                    {reportType === 'overall' && renderOverall()}
+                </>
+            )}
+        </Card>
     );
 };
