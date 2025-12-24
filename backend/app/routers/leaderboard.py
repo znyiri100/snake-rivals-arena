@@ -100,6 +100,7 @@ async def submit_score(submission: ScoreSubmission, current_user: DBUser = Depen
 async def get_all_scores_ranked(
     gameMode: Optional[GameMode] = None,
     group_id: Optional[str] = None,
+    username: Optional[str] = None,
     sort_by: str = "rank",  # "rank" (default) or "date"
     db: AsyncSession = Depends(get_db)
 ):
@@ -127,8 +128,12 @@ async def get_all_scores_ranked(
         # Default to rank/score
         query = query.order_by(DBLeaderboardEntry.score.desc())
     
+    
     if gameMode:
         query = query.where(DBLeaderboardEntry.game_mode == gameMode)
+
+    if username:
+        query = query.where(DBLeaderboardEntry.username == username)
     
     # Group filtering using Joins
     if group_id and group_id != "all":

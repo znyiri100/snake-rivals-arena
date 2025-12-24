@@ -207,13 +207,16 @@ class ApiService {
     }
 
     // Ranking endpoints
-    async getAllScoresRanked(gameMode?: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris', groupId?: string, sortBy: 'rank' | 'date' = 'rank'): Promise<RankedScore[]> {
+    async getAllScoresRanked(gameMode?: 'snake' | 'minesweeper' | 'space_invaders' | 'tetris', groupId?: string, sortBy: 'rank' | 'date' = 'rank', username?: string): Promise<RankedScore[]> {
         let url = `${API_URL}/leaderboard/rankings/all-scores?sort_by=${sortBy}&`;
         if (gameMode) {
             url += `gameMode=${gameMode}&`;
         }
         if (groupId) {
             url += `group_id=${groupId}&`;
+        }
+        if (username) {
+            url += `username=${username}&`;
         }
         try {
             const response = await fetch(url, { headers: this.getHeaders() });

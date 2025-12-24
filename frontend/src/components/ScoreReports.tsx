@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api, type User, type Group, type RankedScore, type UserGameModeRank, type OverallRanking } from '@/services/api';
-import { Trophy, Medal, Users, TrendingUp, Activity, Check, ChevronsUpDown } from 'lucide-react';
+import { Trophy, Medal, Users, TrendingUp, Activity, Check, ChevronsUpDown, Info } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
@@ -71,7 +71,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
     const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
     const [topNLimit, setTopNLimit] = useState<number>(10);
-    const [sortBy, setSortBy] = useState<'rank' | 'date'>('rank');
+    const [sortBy, setSortBy] = useState<'rank' | 'date'>('date');
     const [isLoading, setIsLoading] = useState(true);
 
     // Data states
@@ -80,7 +80,16 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     const [topNData, setTopNData] = useState<Record<string, UserGameModeRank[]>>({});
     const [overallRankings, setOverallRankings] = useState<OverallRanking[]>([]);
     const [isNormalized, setIsNormalized] = useState(true);
-    const [playerChartType, setPlayerChartType] = useState<'radar' | 'bar'>('radar');
+    const [playerChartType, setPlayerChartType] = useState<'radar' | 'bar' | 'stacked-bar'>('radar');
+
+    // New states for relocated Dashboard graphs
+    const [distribution, setDistribution] = useState<{ range: string; count: number }[]>([]);
+    const [topScores, setTopScores] = useState<any[]>([]);
+    const [overallSelectedMode, setOverallSelectedMode] = useState<string>('snake');
+
+    // Filters for "All Scores"
+    const [selectedPlayerForScores, setSelectedPlayerForScores] = useState<string>('');
+    const [playerSearchOpen, setPlayerSearchOpen] = useState(false);
 
     // Load available groups
     useEffect(() => {
@@ -90,6 +99,16 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
         };
         fetchGroups();
     }, []);
+
+    const loadModeSpecificData = async (mode: string, groupId: string) => {
+        const [dist, top] = await Promise.all([
+            api.getScoreDistribution(mode, groupId === 'all' ? undefined : groupId),
+            api.getTopNPerMode(5, groupId === 'all' ? undefined : groupId)
+        ]);
+        setDistribution(dist);
+        const modeData = (top as any)[mode] || [];
+        setTopScores(modeData);
+    };
 
     // Load data based on report type
     useEffect(() => {
@@ -101,7 +120,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
 
                 switch (reportType) {
                     case 'all-scores':
-                        const scores = await api.getAllScoresRanked(mode, groupId, sortBy);
+                        const scores = await api.getAllScoresRanked(mode, groupId, sortBy, selectedPlayerForScores || undefined);
                         setAllScores(scores);
                         break;
                     case 'best-per-user':
@@ -123,6 +142,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                     case 'top-n':
                         const topN = await api.getTopNPerMode(topNLimit, groupId);
                         setTopNData(topN);
+                        await loadModeSpecificData(overallSelectedMode, selectedGroupId);
                         break;
                     case 'overall':
                         const overall = await api.getOverallRankings(groupId);
@@ -132,17 +152,18 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
             } catch (error) {
                 console.error('Failed to load report data:', error);
             } finally {
-                if (reportType !== 'dashboard') {
-                    setIsLoading(false);
-                } else {
-                    // Dashboard handles its own loading
-                    setIsLoading(false);
-                }
+                setIsLoading(false);
             }
         };
-
         loadData();
-    }, [reportType, gameMode, selectedGroupId, topNLimit, sortBy]);
+    }, [reportType, gameMode, selectedGroupId, sortBy, topNLimit, selectedPlayerForScores]);
+
+    // Re-fetch distribution when mode changes in Top Players report
+    useEffect(() => {
+        if (reportType === 'top-n') {
+            loadModeSpecificData(overallSelectedMode, selectedGroupId);
+        }
+    }, [overallSelectedMode, reportType, selectedGroupId]);
 
     const getRankIcon = (rank: number) => {
         if (rank === 1) return <Trophy className="w-5 h-5 text-neon-yellow" />;
@@ -199,7 +220,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
             : (selectedOverallStats.reduce((sum, r) => sum + r.avg_rank, 0) / (selectedOverallStats.length || 1)).toFixed(2);
 
         // Derive Chart Data for comparison
-        // We need a single array where each object is { mode: string, label: string, [player_username]: rank }
+        // We need a single array where each object is {mode: string, label: string, [player_username]: rank }
         const chartData = Object.keys(GAME_MODE_LABELS).map(mode => {
             const dataPoint: any = {
                 mode: mode,
@@ -214,6 +235,18 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                 dataPoint[`original_rank_${username}`] = rank;
             });
 
+            return dataPoint;
+        });
+
+        const stackedData = selectedPlayers.map(username => {
+            const dataPoint: any = { username };
+            Object.keys(GAME_MODE_LABELS).forEach(mode => {
+                const entry = bestPerUser.find(d => d.username === username && d.game_mode === mode);
+                const rank = entry ? entry.rank : 0;
+                // Invert rank for visualization
+                dataPoint[mode] = rank === 0 ? 0 : Math.max(0.5, 5 + 1 - rank);
+                dataPoint[`${mode}_original`] = rank;
+            });
             return dataPoint;
         });
 
@@ -234,9 +267,58 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                     <Card className="p-6 bg-card/50 border-primary/20 mb-6">
                         <div className="text-center mb-8">
                             <h3 className="text-2xl font-bold text-foreground">
-                                {selectedPlayers.length === 1 ? `Performance Profile: ${selectedPlayers[0]}` : 'Player Comparison'}
+                                {selectedPlayers.length === 1 ? `Performance Profile (Outer is Better #1): ${selectedPlayers[0]}` : 'Player Comparison (Outer is Better #1)'}
                             </h3>
-                            <p className="text-muted-foreground font-semibold">Avg Rank: {avgRankDisplay} (Outer is Better #1)</p>
+                        </div>
+
+                        {/* Rank Table */}
+                        <div className="mb-4 border-b border-border pb-6 overflow-x-auto">
+                            <table className="w-full text-sm border-collapse">
+                                <thead>
+                                    <tr className="border-b border-border">
+                                        <th className="text-left py-2 font-bold text-muted-foreground">Player</th>
+                                        {Object.keys(GAME_MODE_LABELS).map(mode => (
+                                            <th key={mode} className="text-center py-2 font-bold text-muted-foreground">
+                                                {GAME_MODE_LABELS[mode]?.split(' ')[1] || mode}
+                                            </th>
+                                        ))}
+                                        <th className="text-right py-2 font-bold text-muted-foreground">Avg Rank</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedPlayers.map((username, pIndex) => {
+                                        const playerStats = overallRankings.find(r => r.username === username);
+                                        return (
+                                            <tr key={username} className="border-b border-border/50 hover:bg-muted/30">
+                                                <td className="py-3 font-semibold text-foreground flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PLAYER_COLORS[pIndex % PLAYER_COLORS.length] }} />
+                                                    {username}
+                                                </td>
+                                                {Object.keys(GAME_MODE_LABELS).map(mode => {
+                                                    const entry = bestPerUser.find(d => d.username === username && d.game_mode === mode);
+                                                    return (
+                                                        <td key={mode} className="text-center py-3">
+                                                            {entry ? (
+                                                                <span className={cn(
+                                                                    "font-bold",
+                                                                    entry.rank === 1 ? "text-neon-yellow" :
+                                                                        entry.rank === 2 ? "text-muted-foreground" :
+                                                                            entry.rank === 3 ? "text-accent" : "text-foreground"
+                                                                )}>
+                                                                    #{entry.rank}
+                                                                </span>
+                                                            ) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="text-right py-3 font-bold text-primary">
+                                                    {playerStats?.avg_rank || '-'}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
 
                         <div className="flex items-center justify-between mb-4 gap-4">
@@ -261,6 +343,14 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                 >
                                     Bar
                                 </Button>
+                                <Button
+                                    variant={playerChartType === 'stacked-bar' ? 'secondary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setPlayerChartType('stacked-bar')}
+                                    className="h-7 text-xs"
+                                >
+                                    Stacked
+                                </Button>
                             </div>
                         </div>
 
@@ -274,8 +364,32 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                             angle={0}
                                             domain={[0, 5]}
                                             tickCount={6}
-                                            tickFormatter={(val) => val > 0 ? (6 - val).toString() : ''}
-                                            tick={{ fill: '#666', fontSize: 12 }}
+                                            tickFormatter={(val) => (val > 0 && val <= 5) ? (6 - val).toString() : ''}
+                                            tick={{ fill: '#666', fontSize: 11 }}
+                                            axisLine={false}
+                                        />
+                                        <PolarRadiusAxis
+                                            angle={90}
+                                            domain={[0, 5]}
+                                            tickCount={6}
+                                            tickFormatter={(val) => (val > 0 && val <= 5) ? (6 - val).toString() : ''}
+                                            tick={{ fill: '#666', fontSize: 11 }}
+                                            axisLine={false}
+                                        />
+                                        <PolarRadiusAxis
+                                            angle={180}
+                                            domain={[0, 5]}
+                                            tickCount={6}
+                                            tickFormatter={(val) => (val > 0 && val <= 5) ? (6 - val).toString() : ''}
+                                            tick={{ fill: '#666', fontSize: 11 }}
+                                            axisLine={false}
+                                        />
+                                        <PolarRadiusAxis
+                                            angle={270}
+                                            domain={[0, 5]}
+                                            tickCount={6}
+                                            tickFormatter={(val) => (val > 0 && val <= 5) ? (6 - val).toString() : ''}
+                                            tick={{ fill: '#666', fontSize: 11 }}
                                             axisLine={false}
                                         />
                                         {selectedPlayers.map((username, index) => (
@@ -298,7 +412,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                         />
                                         <Legend verticalAlign="bottom" height={36} />
                                     </RadarChart>
-                                ) : (
+                                ) : playerChartType === 'bar' ? (
                                     <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
                                         <XAxis dataKey="label" stroke="#888" tick={{ fill: '#888', fontSize: 14 }} />
@@ -315,6 +429,29 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                                 name={username}
                                                 fill={PLAYER_COLORS[index % PLAYER_COLORS.length]}
                                                 radius={[4, 4, 0, 0]}
+                                            />
+                                        ))}
+                                    </BarChart>
+                                ) : (
+                                    <BarChart data={stackedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                                        <XAxis dataKey="username" stroke="#888" tick={{ fill: '#888', fontSize: 14 }} />
+                                        <YAxis stroke="#888" tick={{ fill: '#888', fontSize: 14 }} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', color: '#fff' }}
+                                            formatter={(value: any, name: string, props: any) => {
+                                                const originalRank = props.payload[`${name}_original`];
+                                                return originalRank === 0 ? ['Not Ranked', GAME_MODE_LABELS[name]] : [`#${originalRank}`, GAME_MODE_LABELS[name]];
+                                            }}
+                                        />
+                                        <Legend />
+                                        {Object.keys(GAME_MODE_LABELS).map((mode, index) => (
+                                            <Bar
+                                                key={mode}
+                                                dataKey={mode}
+                                                name={GAME_MODE_LABELS[mode]}
+                                                stackId="a"
+                                                fill={['#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][index % 4]}
                                             />
                                         ))}
                                     </BarChart>
@@ -370,35 +507,125 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     };
 
     const renderTopN = () => (
-        <Tabs defaultValue={Object.keys(topNData)[0]} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-                {Object.keys(topNData).map(mode => (
-                    <TabsTrigger key={mode} value={mode}>
-                        {GAME_MODE_LABELS[mode]?.split(' ')[1] || mode}
-                    </TabsTrigger>
-                ))}
-            </TabsList>
-            {Object.entries(topNData).map(([mode, entries]) => (
-                <TabsContent key={mode} value={mode} className="space-y-2 mt-4">
-                    {entries.map((entry) => (
-                        <div
-                            key={entry.username}
-                            className="flex items-center justify-between p-3 bg-muted/50 rounded border border-border"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 text-center font-bold">
-                                    {getRankIcon(entry.rank) || `#${entry.rank}`}
+        <div className="space-y-6">
+            {/* Score Distribution and Top Leaders Charts */}
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+                <Card className="p-6 bg-card/80 border-border">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold flex items-center gap-2 text-foreground">
+                            <Info className="w-5 h-5 text-primary" />
+                            Score Distribution
+                        </h3>
+                        <Select value={overallSelectedMode} onValueChange={setOverallSelectedMode}>
+                            <SelectTrigger className="w-[140px] h-8 text-xs bg-muted/50">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="snake">🐍 Snake</SelectItem>
+                                <SelectItem value="minesweeper">💣 Minesweeper</SelectItem>
+                                <SelectItem value="space_invaders">🚀 Space Invaders</SelectItem>
+                                <SelectItem value="tetris">🟦 Tetris</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="h-[250px] w-full">
+                        {distribution.length > 0 && distribution.every(d => d.count === 0) ? (
+                            <div className="h-full flex items-center justify-center text-muted-foreground">
+                                No data available for this mode
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={distribution}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                                    <XAxis
+                                        dataKey="range"
+                                        stroke="hsl(var(--muted-foreground))"
+                                        fontSize={10}
+                                        interval={0}
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={60}
+                                    />
+                                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                                    <Tooltip
+                                        cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
+                                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                    />
+                                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+                </Card>
+
+                <Card className="p-6 bg-card/80 border-border">
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-foreground">
+                        <Trophy className="w-5 h-5 text-neon-yellow" />
+                        Top 5 Leaders ({GAME_MODE_LABELS[overallSelectedMode] || overallSelectedMode})
+                    </h3>
+                    <div className="space-y-3">
+                        {topScores.length === 0 ? (
+                            <div className="text-center p-8 text-muted-foreground">
+                                No scores yet for this mode.
+                            </div>
+                        ) : (
+                            topScores.map((score, index) => (
+                                <div key={score.username} className="flex items-center justify-between p-3 bg-muted/30 rounded border border-border/50">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm
+                                            ${index === 0 ? 'bg-neon-yellow/20 text-neon-yellow' :
+                                                index === 1 ? 'bg-muted-foreground/20 text-muted-foreground' :
+                                                    index === 2 ? 'bg-accent/20 text-accent' : 'bg-muted text-muted-foreground'}
+                                        `}>
+                                            {index + 1}
+                                        </div>
+                                        <span className="font-semibold">{score.username}</span>
+                                    </div>
+                                    <span className="font-mono font-bold text-primary">{score.best_score.toLocaleString()}</span>
                                 </div>
-                                <div className="font-semibold text-foreground">{entry.username}</div>
-                            </div>
-                            <div className="text-xl font-bold text-primary neon-text">
-                                {entry.best_score}
-                            </div>
-                        </div>
+                            ))
+                        )}
+                    </div>
+                </Card>
+            </div>
+
+            <div className="pt-4 border-t border-border">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-foreground">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Detailed Rankings (Top {topNLimit})
+                </h3>
+                <Tabs defaultValue={Object.keys(topNData)[0]} className="w-full">
+                    <TabsList className="grid w-full grid-cols-4">
+                        {Object.keys(topNData).map(mode => (
+                            <TabsTrigger key={mode} value={mode}>
+                                {GAME_MODE_LABELS[mode]?.split(' ')[1] || mode}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                    {Object.entries(topNData).map(([mode, entries]) => (
+                        <TabsContent key={mode} value={mode} className="space-y-2 mt-4">
+                            {entries.map((entry) => (
+                                <div
+                                    key={entry.username}
+                                    className="flex items-center justify-between p-3 bg-muted/50 rounded border border-border"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 text-center font-bold">
+                                            {getRankIcon(entry.rank) || `#${entry.rank}`}
+                                        </div>
+                                        <div className="font-semibold text-foreground">{entry.username}</div>
+                                    </div>
+                                    <div className="text-xl font-bold text-primary neon-text">
+                                        {entry.best_score}
+                                    </div>
+                                </div>
+                            ))}
+                        </TabsContent>
                     ))}
-                </TabsContent>
-            ))}
-        </Tabs>
+                </Tabs>
+            </div>
+        </div>
     );
 
     const renderOverallChart = () => {
@@ -520,44 +747,46 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
             {overallRankings.length > 0 && renderOverallChart()}
 
             {/* List Section */}
-            {overallRankings.map((entry) => (
-                <div
-                    key={entry.username}
-                    className="flex items-center justify-between p-4 bg-muted/50 rounded border border-border hover:border-primary/50 transition-colors"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 text-center font-bold text-foreground">
-                            {getRankIcon(entry.overall_rank) || `#${entry.overall_rank}`}
-                        </div>
-                        <div>
-                            <div className="font-semibold text-foreground text-lg">{entry.username}</div>
-                            <div className="flex items-center gap-3 mt-1">
-                                <Badge variant="secondary" className="text-xs">
-                                    {entry.modes_played} {entry.modes_played === 1 ? 'mode' : 'modes'}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">
-                                    Avg Rank: {entry.avg_rank}
-                                </span>
+            <div className="space-y-2">
+                {overallRankings.map((entry) => (
+                    <div
+                        key={entry.username}
+                        className="flex items-center justify-between p-4 bg-muted/50 rounded border border-border hover:border-primary/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 text-center font-bold text-foreground">
+                                {getRankIcon(entry.overall_rank) || `#${entry.overall_rank}`}
                             </div>
-                            {/* Mode Ranks */}
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                {Object.entries(entry.mode_ranks || {}).map(([mode, rank]) => (
-                                    <Badge key={mode} variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-primary/20 bg-primary/5">
-                                        <span className="opacity-70 mr-1">{GAME_MODE_LABELS[mode]?.split(' ')[0] || mode}</span>
-                                        <span className="font-bold text-primary">#{rank}</span>
+                            <div>
+                                <div className="font-semibold text-foreground text-lg">{entry.username}</div>
+                                <div className="flex items-center gap-3 mt-1">
+                                    <Badge variant="secondary" className="text-xs">
+                                        {entry.modes_played} {entry.modes_played === 1 ? 'mode' : 'modes'}
                                     </Badge>
-                                ))}
+                                    <span className="text-xs text-muted-foreground">
+                                        Avg Rank: {entry.avg_rank}
+                                    </span>
+                                </div>
+                                {/* Mode Ranks */}
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {Object.entries(entry.mode_ranks || {}).map(([mode, rank]) => (
+                                        <Badge key={mode} variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-primary/20 bg-primary/5">
+                                            <span className="opacity-70 mr-1">{GAME_MODE_LABELS[mode]?.split(' ')[0] || mode}</span>
+                                            <span className="font-bold text-primary">#{rank}</span>
+                                        </Badge>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="text-right">
-                        <div className="text-xl font-bold text-primary neon-text">
-                            {entry.total_best_scores.toLocaleString()}
+                        <div className="text-right">
+                            <div className="text-xl font-bold text-primary neon-text">
+                                {entry.total_best_scores.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Total Score</div>
                         </div>
-                        <div className="text-xs text-muted-foreground">Total Score</div>
                     </div>
-                </div>
-            ))}
+                ))}
+            </div>
         </div>
     );
 
@@ -599,7 +828,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                         size="sm"
                         onClick={() => setReportType('best-per-user')}
                     >
-                        Player
+                        Player Skills
                     </Button>
                     <Button
                         variant={reportType === 'all-scores' ? 'default' : 'outline'}
@@ -696,6 +925,86 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                     </Select>
                 )}
 
+                {/* Player Filter and Sort By for "All Scores" */}
+                {reportType === 'all-scores' && (
+                    <>
+                        {/* Player Filter */}
+                        <Popover open={playerSearchOpen} onOpenChange={setPlayerSearchOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={playerSearchOpen}
+                                    className="w-[200px] justify-between h-9 text-xs bg-muted/50 border-border"
+                                >
+                                    <div className="flex items-center gap-2 overflow-hidden overflow-ellipsis">
+                                        <Users className="w-3 h-3" />
+                                        {selectedPlayerForScores
+                                            ? overallRankings.find((p) => p.username === selectedPlayerForScores)?.username || selectedPlayerForScores
+                                            : "Select player..."}
+                                    </div>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[200px] p-0 bg-popover border-border">
+                                <Command>
+                                    <CommandInput placeholder="Search player..." />
+                                    <CommandList>
+                                        <CommandEmpty>No player found.</CommandEmpty>
+                                        <CommandGroup>
+                                            <CommandItem
+                                                value="all_players_reset_value"
+                                                onSelect={() => {
+                                                    setSelectedPlayerForScores('');
+                                                    setPlayerSearchOpen(false);
+                                                }}
+                                                className="font-medium text-muted-foreground"
+                                            >
+                                                <Check
+                                                    className={cn(
+                                                        "mr-2 h-4 w-4",
+                                                        selectedPlayerForScores === '' ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                />
+                                                All Players
+                                            </CommandItem>
+                                            {overallRankings.map((player) => (
+                                                <CommandItem
+                                                    key={player.username}
+                                                    value={player.username}
+                                                    onSelect={(currentValue) => {
+                                                        setSelectedPlayerForScores(currentValue === selectedPlayerForScores ? "" : currentValue);
+                                                        setPlayerSearchOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            selectedPlayerForScores === player.username ? "opacity-100" : "opacity-0"
+                                                        )}
+                                                    />
+                                                    {player.username}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+
+                        {/* Sort By Filter */}
+                        <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+                            <SelectTrigger className="w-[140px] h-9 text-xs bg-muted/50 border-border">
+                                <SelectValue placeholder="Sort by" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="rank">🏅 Rank</SelectItem>
+                                <SelectItem value="date">📅 Date</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </>
+                )}
+
                 {/* Top N selector */}
                 {reportType === 'top-n' && (
                     <Select value={topNLimit.toString()} onValueChange={(v) => setTopNLimit(parseInt(v))}>
@@ -712,18 +1021,6 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                     </Select>
                 )}
 
-                {/* Sort selector for All Scores and Best Per User */}
-                {(reportType === 'all-scores' || reportType === 'best-per-user') && (
-                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'rank' | 'date')}>
-                        <SelectTrigger className="w-[120px] h-9 text-xs bg-muted/50 border-border">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="rank">Sort by Rank</SelectItem>
-                            <SelectItem value="date">Sort by Date</SelectItem>
-                        </SelectContent>
-                    </Select>
-                )}
             </div>
 
             {/* Content area */}
