@@ -80,7 +80,8 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
     const [topNData, setTopNData] = useState<Record<string, UserGameModeRank[]>>({});
     const [overallRankings, setOverallRankings] = useState<OverallRanking[]>([]);
     const [isNormalized, setIsNormalized] = useState(true);
-    const [playerChartType, setPlayerChartType] = useState<'radar' | 'bar' | 'stacked-bar'>('radar');
+    const [playerChartType, setPlayerChartType] = useState<'radar' | 'bar'>('radar');
+    const [isSkillsNormalized, setIsSkillsNormalized] = useState(false);
 
     // New states for relocated Dashboard graphs
     const [distribution, setDistribution] = useState<{ range: string; count: number }[]>([]);
@@ -221,6 +222,12 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
 
         // Derive Chart Data for comparison
         // We need a single array where each object is {mode: string, label: string, [player_username]: rank }
+        // For normalization: we use Rank / ModesPlayed. Lower is better.
+        // For standard: we use Rank. Lower is better.
+
+        // Calculate max value for Radar domain if normalized
+        let maxNormalizedValue = 0;
+
         const chartData = Object.keys(GAME_MODE_LABELS).map(mode => {
             const dataPoint: any = {
                 mode: mode,
@@ -230,23 +237,35 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
             selectedPlayers.forEach(username => {
                 const entry = bestPerUser.find(d => d.username === username && d.game_mode === mode);
                 const rank = entry ? entry.rank : 0;
-                // Invert rank for visualization (5 ranks domain)
-                dataPoint[`rank_${username}`] = rank === 0 ? 0 : Math.max(0.5, 5 + 1 - rank);
+                const games = entry ? entry.games_played : 0;
+
+                let val: number | null = null;
+                let radarVal = 0;
+
+                const playerOverall = selectedOverallStats.find(p => p.username === username);
+                const modesPlayed = playerOverall ? playerOverall.modes_played : 1;
+
+                if (rank > 0) {
+                    if (isSkillsNormalized) {
+                        // Normalize by Number of Game Types Played (Modes Played)
+                        val = rank / modesPlayed;
+                        // Radar Inversion: Max (5) - val. 
+                        radarVal = Math.max(0, 5 - val);
+                    } else {
+                        val = rank;
+                        // Radar Inversion: 6 - rank (1->5, 5->1).
+                        radarVal = 6 - val;
+                    }
+                } else {
+                    radarVal = 0;
+                }
+
+                dataPoint[`rank_${username}`] = val;
+                dataPoint[`radar_${username}`] = radarVal;
                 dataPoint[`original_rank_${username}`] = rank;
+                dataPoint[`games_${username}`] = games;
             });
 
-            return dataPoint;
-        });
-
-        const stackedData = selectedPlayers.map(username => {
-            const dataPoint: any = { username };
-            Object.keys(GAME_MODE_LABELS).forEach(mode => {
-                const entry = bestPerUser.find(d => d.username === username && d.game_mode === mode);
-                const rank = entry ? entry.rank : 0;
-                // Invert rank for visualization
-                dataPoint[mode] = rank === 0 ? 0 : Math.max(0.5, 5 + 1 - rank);
-                dataPoint[`${mode}_original`] = rank;
-            });
             return dataPoint;
         });
 
@@ -267,7 +286,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                     <Card className="p-6 bg-card/50 border-primary/20 mb-6">
                         <div className="text-center mb-8">
                             <h3 className="text-2xl font-bold text-foreground">
-                                {selectedPlayers.length === 1 ? `Performance Profile (Outer is Better #1): ${selectedPlayers[0]}` : 'Player Comparison (Outer is Better #1)'}
+                                {selectedPlayers.length === 1 ? `Performance Profile (Lower is Better #1): ${selectedPlayers[0]}` : 'Player Comparison (Lower is Better #1)'}
                             </h3>
                         </div>
 
@@ -326,6 +345,10 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                 <Activity className="w-4 h-4 text-primary" />
                                 SKILL ANALYSIS
                             </h3>
+                            <div className="flex items-center space-x-2">
+                                <Switch id="normalize-skills" checked={isSkillsNormalized} onCheckedChange={setIsSkillsNormalized} />
+                                <Label htmlFor="normalize-skills" className="text-xs font-medium">Normalize by Games Played</Label>
+                            </div>
                             <div className="flex items-center space-x-2 bg-muted/50 p-1 rounded-lg border border-border">
                                 <Button
                                     variant={playerChartType === 'radar' ? 'secondary' : 'ghost'}
@@ -343,14 +366,6 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                 >
                                     Bar
                                 </Button>
-                                <Button
-                                    variant={playerChartType === 'stacked-bar' ? 'secondary' : 'ghost'}
-                                    size="sm"
-                                    onClick={() => setPlayerChartType('stacked-bar')}
-                                    className="h-7 text-xs"
-                                >
-                                    Stacked
-                                </Button>
                             </div>
                         </div>
 
@@ -364,7 +379,9 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                             angle={0}
                                             domain={[0, 5]}
                                             tickCount={6}
-                                            tickFormatter={(val) => (val > 0 && val <= 5) ? (6 - val).toString() : ''}
+                                            tickFormatter={(val) => isSkillsNormalized
+                                                ? (5 - val).toFixed(1)
+                                                : (val === 0 ? '' : (6 - val).toString())}
                                             tick={{ fill: '#666', fontSize: 11 }}
                                             axisLine={false}
                                         />
@@ -372,7 +389,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                             angle={90}
                                             domain={[0, 5]}
                                             tickCount={6}
-                                            tickFormatter={(val) => (val > 0 && val <= 5) ? (6 - val).toString() : ''}
+                                            tickFormatter={() => ''}
                                             tick={{ fill: '#666', fontSize: 11 }}
                                             axisLine={false}
                                         />
@@ -380,7 +397,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                             angle={180}
                                             domain={[0, 5]}
                                             tickCount={6}
-                                            tickFormatter={(val) => (val > 0 && val <= 5) ? (6 - val).toString() : ''}
+                                            tickFormatter={() => ''}
                                             tick={{ fill: '#666', fontSize: 11 }}
                                             axisLine={false}
                                         />
@@ -388,7 +405,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                             angle={270}
                                             domain={[0, 5]}
                                             tickCount={6}
-                                            tickFormatter={(val) => (val > 0 && val <= 5) ? (6 - val).toString() : ''}
+                                            tickFormatter={() => ''}
                                             tick={{ fill: '#666', fontSize: 11 }}
                                             axisLine={false}
                                         />
@@ -396,7 +413,7 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                             <Radar
                                                 key={username}
                                                 name={username}
-                                                dataKey={`rank_${username}`}
+                                                dataKey={`radar_${username}`}
                                                 stroke={PLAYER_COLORS[index % PLAYER_COLORS.length]}
                                                 fill={PLAYER_COLORS[index % PLAYER_COLORS.length]}
                                                 fillOpacity={0.2}
@@ -407,12 +424,22 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                             contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', color: '#fff' }}
                                             formatter={(value: any, name: string, props: any) => {
                                                 const originalRank = props.payload[`original_rank_${name}`];
-                                                return originalRank === 0 ? ['Not Ranked', name] : [`#${originalRank}`, name];
+                                                const games = props.payload[`games_${name}`];
+                                                // Get the actual normalized value (rank / modes) for display
+                                                const normalizedRank = props.payload[`rank_${name}`];
+
+                                                const rankText = originalRank === 0 ? 'Not Ranked' : `#${originalRank}`;
+                                                return [
+                                                    isSkillsNormalized
+                                                        ? `${Number(normalizedRank).toFixed(2)} (Rank/Modes)`
+                                                        : rankText,
+                                                    `${name} (${games} games)`
+                                                ];
                                             }}
                                         />
                                         <Legend verticalAlign="bottom" height={36} />
                                     </RadarChart>
-                                ) : playerChartType === 'bar' ? (
+                                ) : (
                                     <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
                                         <XAxis dataKey="label" stroke="#888" tick={{ fill: '#888', fontSize: 14 }} />
@@ -425,33 +452,10 @@ export const ScoreReports = ({ user }: ScoreReportsProps) => {
                                         {selectedPlayers.map((username, index) => (
                                             <Bar
                                                 key={username}
-                                                dataKey={`original_rank_${username}`}
+                                                dataKey={`rank_${username}`}
                                                 name={username}
                                                 fill={PLAYER_COLORS[index % PLAYER_COLORS.length]}
                                                 radius={[4, 4, 0, 0]}
-                                            />
-                                        ))}
-                                    </BarChart>
-                                ) : (
-                                    <BarChart data={stackedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                                        <XAxis dataKey="username" stroke="#888" tick={{ fill: '#888', fontSize: 14 }} />
-                                        <YAxis stroke="#888" tick={{ fill: '#888', fontSize: 14 }} />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', color: '#fff' }}
-                                            formatter={(value: any, name: string, props: any) => {
-                                                const originalRank = props.payload[`${name}_original`];
-                                                return originalRank === 0 ? ['Not Ranked', GAME_MODE_LABELS[name]] : [`#${originalRank}`, GAME_MODE_LABELS[name]];
-                                            }}
-                                        />
-                                        <Legend />
-                                        {Object.keys(GAME_MODE_LABELS).map((mode, index) => (
-                                            <Bar
-                                                key={mode}
-                                                dataKey={mode}
-                                                name={GAME_MODE_LABELS[mode]}
-                                                stackId="a"
-                                                fill={['#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][index % 4]}
                                             />
                                         ))}
                                     </BarChart>

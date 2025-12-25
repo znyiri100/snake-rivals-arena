@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { GameBoard } from '@/components/GameBoard';
 import { MobileControls } from '@/components/MobileControls';
 import { api } from '@/services/api';
+import { useSound } from '@/contexts/SoundContext';
 import {
     getInitialGameState,
     moveSnake,
